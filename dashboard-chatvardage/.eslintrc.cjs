@@ -23,6 +23,9 @@ module.exports = {
     'import/no-unresolved': 'off',
     'import/no-extraneous-dependencies': 'off',
     'import/extensions': 'off',
+    'no-useless-constructor': 'off',
+    'no-empty-function': 'off',
+    'class-methods-use-this': 'error',
     'import/order': [
       'error',
       {

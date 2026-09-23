@@ -1,5 +1,5 @@
 import { ComponentLoader } from 'adminjs';
 
-const componentLoader = new ComponentLoader();
+const chargeurComposants = new ComponentLoader();
 
-export default componentLoader;
+export default chargeurComposants;

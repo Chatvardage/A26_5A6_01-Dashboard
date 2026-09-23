@@ -1,20 +1,28 @@
 FROM node:20-alpine
 
-# Install build dependencies required for compiling AdminJS UI components
-RUN apk add --no-cache python3 make g++ 
+# Install build tools needed for native node-gyp / AdminJS compilation
+RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
-# Copy dependency definitions
+# Explicitly allow npm post-install scripts (needed for esbuild binary installation)
+ENV NPM_CONFIG_IGNORE_SCRIPTS=false
+
+# Copy package files
 COPY package*.json ./
 
-# Install dependencies (works safely even without a package-lock.json)
-RUN npm install
+# Clean install to ensure exact lockfile dependencies and complete postinstall scripts
+RUN npm ci
 
-# Copy the rest of your local repository files
+# Copy application source
 COPY . .
+
+# Set production environment for build step
+ENV NODE_ENV=production
+
+# Build the NestJS application (compiles TS and triggers AdminJS bundler if configured)
+RUN npm run build
 
 EXPOSE 3000
 
-# Start your application (Adjust "app.js" if your main file is named server.js, index.js, etc.)
-CMD ["node", "app.js"]
+CMD ["node", "dist/main.js"]
