@@ -1,17 +1,32 @@
-import { BaseProperty, BaseRecord, BaseResource } from 'adminjs';
+import {
+  BaseProperty, BaseRecord, BaseResource, ValidationError,
+} from 'adminjs';
 
 type ChampRessource = {
   path: string;
-  type?: 'string' | 'textarea' | 'datetime' | 'uuid';
+  type?: 'string' | 'textarea' | 'datetime' | 'uuid' | 'password';
   isId?: boolean;
   isSortable?: boolean;
 };
 
+export type ChargeurEnregistrements = (
+  requete: <T>(chemin: string) => Promise<T>,
+) => Promise<Record<string, unknown>[]>;
+
 type ConfigurationRessourceDistante = {
   id: string;
   cheminListe: string;
+  cheminCreation: string | ((parametres: Record<string, unknown>) => string);
   cheminSuppression: (id: string) => string;
   champs: ChampRessource[];
+  champsFiltrables: string[];
+  transformerCreation?: (parametres: Record<string, unknown>) => Record<string, unknown>;
+  transformerLecture?: (enregistrement: Record<string, unknown>) => Record<string, unknown>;
+  chargerEnregistrements?: ChargeurEnregistrements;
+};
+
+type FiltreAdminJS = {
+  filters?: Record<string, { value?: unknown }>;
 };
 
 export class RessourceApiDistante extends BaseResource {
@@ -22,6 +37,8 @@ export class RessourceApiDistante extends BaseResource {
     this.proprietes = configuration.champs.map((champ) => new BaseProperty(champ));
   }
 
+  // AdminJS requires this instance override even though it has no state.
+  // eslint-disable-next-line class-methods-use-this
   databaseName(): string {
     return 'ChatVardage';
   }
@@ -38,17 +55,17 @@ export class RessourceApiDistante extends BaseResource {
     return this.proprietes.find((propriete) => propriete.path() === path) ?? null;
   }
 
-  async count(_filter: unknown, contexte?: unknown): Promise<number> {
-    return (await this.chargerEnregistrements(contexte)).length;
+  async count(filtre: unknown, contexte?: unknown): Promise<number> {
+    return this.filtrer(await this.chargerEnregistrements(contexte), filtre).length;
   }
 
   async find(
-    _filter: unknown,
+    filtre: unknown,
     optionsRecherche: { limit?: number; offset?: number; sort?: { sortBy?: string; direction?: 'asc' | 'desc' } },
     contexte?: unknown,
   ): Promise<BaseRecord[]> {
-    const enregistrements = await this.chargerEnregistrements(contexte);
-    const enregistrementsTries = this.trier(enregistrements, optionsRecherche.sort);
+    const enregistrements = this.filtrer(await this.chargerEnregistrements(contexte), filtre);
+    const enregistrementsTries = RessourceApiDistante.trier(enregistrements, optionsRecherche.sort);
     const debut = optionsRecherche.offset ?? 0;
     const fin = optionsRecherche.limit === undefined ? undefined : debut + optionsRecherche.limit;
 
@@ -74,23 +91,63 @@ export class RessourceApiDistante extends BaseResource {
     return new BaseRecord(parametres, this);
   }
 
-  async create(): Promise<Record<string, unknown>> {
-    throw new Error('La creation est geree par le service proprietaire.');
+  async create(parametres: Record<string, unknown>, contexte?: unknown): Promise<Record<string, unknown>> {
+    try {
+      const cheminCreation = typeof this.configuration.cheminCreation === 'function'
+        ? this.configuration.cheminCreation(parametres)
+        : this.configuration.cheminCreation;
+      const enregistrement = await RessourceApiDistante.requete<Record<string, unknown>>(
+        cheminCreation,
+        contexte,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.configuration.transformerCreation?.(parametres) ?? parametres),
+        },
+      );
+
+      if (!enregistrement.id) throw new Error('Le service n a pas retourne l identifiant de l element cree.');
+      return this.transformerLecture(enregistrement);
+    } catch (erreur) {
+      const message = erreur instanceof Error ? erreur.message : 'La creation a echoue.';
+      const correspondance = message.match(/^([\w]+):\s*(.+)$/);
+      const erreursParChamp = correspondance
+        ? { [correspondance[1]]: { message: correspondance[2] } }
+        : {};
+
+      throw new ValidationError(erreursParChamp, correspondance ? undefined : { message });
+    }
   }
 
+  // AdminJS requires this instance override even though it has no state.
+  // eslint-disable-next-line class-methods-use-this
   async update(): Promise<Record<string, unknown>> {
     throw new Error('La modification est geree par le service proprietaire.');
   }
 
   async delete(identifiant: string, contexte?: unknown): Promise<void> {
-    await this.requete(this.configuration.cheminSuppression(identifiant), contexte, { method: 'DELETE' });
+    await RessourceApiDistante.requete(
+      this.configuration.cheminSuppression(identifiant),
+      contexte,
+      { method: 'DELETE' },
+    );
   }
 
   private async chargerEnregistrements(contexte?: unknown): Promise<Record<string, unknown>[]> {
-    return this.requete(this.configuration.cheminListe, contexte);
+    if (this.configuration.chargerEnregistrements) {
+      const requete = <T>(chemin: string) => RessourceApiDistante.requete<T>(chemin, contexte);
+      const enregistrements: Record<string, unknown>[] = await this.configuration.chargerEnregistrements(requete);
+      return enregistrements.map((enregistrement) => this.transformerLecture(enregistrement));
+    }
+
+    const enregistrements = await RessourceApiDistante.requete<Record<string, unknown>[]>(
+      this.configuration.cheminListe,
+      contexte,
+    );
+    return enregistrements.map((enregistrement) => this.transformerLecture(enregistrement));
   }
 
-  private async requete<T>(
+  private static async requete<T>(
     chemin: string,
     contexte: unknown,
     optionsRequete: RequestInit = {},
@@ -117,7 +174,7 @@ export class RessourceApiDistante extends BaseResource {
     throw new Error(corps.message ?? corps.erreur ?? `Le service distant a retourne ${reponse.status}.`);
   }
 
-  private trier(
+  private static trier(
     enregistrements: Record<string, unknown>[],
     tri?: { sortBy?: string; direction?: 'asc' | 'desc' },
   ): Record<string, unknown>[] {
@@ -126,5 +183,53 @@ export class RessourceApiDistante extends BaseResource {
     const multiplicateur = tri.direction === 'desc' ? -1 : 1;
     return [...enregistrements].sort((gauche, droite) => String(gauche[tri.sortBy!])
       .localeCompare(String(droite[tri.sortBy!])) * multiplicateur);
+  }
+
+  private filtrer(enregistrements: Record<string, unknown>[], filtre: unknown): Record<string, unknown>[] {
+    const filtres = (filtre as FiltreAdminJS | undefined)?.filters ?? {};
+    const criteres = Object.entries(filtres)
+      .filter(([champ, valeur]) => this.configuration.champsFiltrables.includes(champ)
+        && typeof valeur.value === 'string'
+        && valeur.value.trim() !== '');
+
+    if (!criteres.length) return enregistrements;
+
+    return enregistrements.filter((enregistrement) => criteres.every(([champ, valeur]) => {
+      const valeurEnregistrement = RessourceApiDistante.normaliserValeur(champ, enregistrement[champ]);
+      const valeurFiltre = RessourceApiDistante.normaliserValeur(champ, valeur.value);
+
+      return champ === 'id'
+        ? valeurEnregistrement === valeurFiltre
+        : valeurEnregistrement.includes(valeurFiltre);
+    }));
+  }
+
+  private static normaliserValeur(champ: string, valeur: unknown): string {
+    if (champ === 'role' && typeof valeur === 'string') return RessourceApiDistante.normaliserRole(valeur);
+    return String(valeur ?? '').trim().toLocaleLowerCase();
+  }
+
+  private static normaliserRole(role: string): string {
+    const valeur = role.trim().toLocaleLowerCase();
+    if (valeur === 'user' || valeur === 'utilisateur') return 'user';
+    if (valeur === 'admin' || valeur === 'administrateur') return 'admin';
+    return valeur;
+  }
+
+  private transformerLecture(enregistrement: Record<string, unknown>): Record<string, unknown> {
+    const enregistrementTransforme = this.configuration.transformerLecture?.(enregistrement) ?? enregistrement;
+    const avecRoleNormalise = typeof enregistrementTransforme.role === 'string'
+      ? { ...enregistrementTransforme, role: RessourceApiDistante.normaliserRole(enregistrementTransforme.role) }
+      : enregistrementTransforme;
+
+    if (this.configuration.id !== 'messages' || typeof avecRoleNormalise.content !== 'string') {
+      return avecRoleNormalise;
+    }
+
+    const contenuCompact = avecRoleNormalise.content.replace(/\s+/g, ' ').trim();
+    return {
+      ...avecRoleNormalise,
+      apercu: contenuCompact.length > 120 ? `${contenuCompact.slice(0, 120)}...` : contenuCompact,
+    };
   }
 }

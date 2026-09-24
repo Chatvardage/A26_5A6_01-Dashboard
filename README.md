@@ -32,15 +32,16 @@ Le panneau est disponible sur `http://localhost:3000/administration`. Il utilise
 le service Authentification pour la connexion et refuse les comptes dont le rôle
 n'est pas `admin`.
 
-Une fois connecté, il permet de lister et supprimer les utilisateurs, les salons
-et les 100 messages les plus récents. Les opérations sont relayées aux services
-propriétaires; le dashboard ne contient ni base de données ni données simulées.
+Une fois connecté, il permet de créer, lister et supprimer les utilisateurs, les
+salons et les 100 messages les plus récents. Les opérations sont relayées aux
+services propriétaires; le dashboard ne contient ni base de données ni données
+simulées.
 
 | Action | Service et route utilisee |
 | --- | --- |
-| Connexion et utilisateurs | Authentification: `/api/auth/login`, `/api/users` |
-| Salons | Room-Service: `/api/admin/rooms`, `/api/rooms/:id` |
-| Messages | Message-Service: `/api/messages/admin`, `/api/messages/admin/:id` |
+| Connexion et utilisateurs | Authentification: `/api/auth/login`, `POST /api/users`, `/api/users` |
+| Salons | Room-Service: `/api/admin/rooms`, `POST /api/rooms`, `/api/rooms/:id` |
+| Messages | Message-Service: `/api/messages/admin`, `POST /api/messages`, `/api/messages/admin/:id` |
 
 ## Configuration
 

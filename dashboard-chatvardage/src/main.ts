@@ -5,32 +5,6 @@ import { NestFactory } from '@nestjs/core';
 import options from './admin/options.js';
 import { ModuleApplication } from './app.module.js';
 
-async function démarrerApplication() {
-  const application = await NestFactory.create(ModuleApplication);
-  const administration = new AdminJS(options);
-  const secretSession = process.env.COOKIE_SECRET ?? 'dashboard_cookie_secret_for_local_development';
-  const routeur = (AdminJSExpress as unknown as {
-    buildAuthenticatedRouter: typeof import('@adminjs/express').default.buildAuthenticatedRouter;
-  }).buildAuthenticatedRouter(
-    administration,
-    {
-      authenticate: async (courriel, motDePasse) => authentifierAdministrateur(courriel, motDePasse),
-      cookieName: 'chatvardage-admin',
-      cookiePassword: secretSession,
-    },
-    undefined,
-    {
-      resave: false,
-      saveUninitialized: false,
-      secret: secretSession,
-    },
-  );
-
-  application.getHttpAdapter().getInstance().use(administration.options.rootPath, routeur);
-  await application.listen(process.env.PORT ?? 3000);
-}
-démarrerApplication();
-
 async function authentifierAdministrateur(courriel: string, motDePasse: string) {
   try {
     const urlAuthentification = (process.env.AUTH_SERVICE_URL ?? 'http://localhost:3001').replace(/\/$/, '');
@@ -59,3 +33,29 @@ async function authentifierAdministrateur(courriel: string, motDePasse: string) 
     return null;
   }
 }
+
+async function démarrerApplication() {
+  const application = await NestFactory.create(ModuleApplication);
+  const administration = new AdminJS(options);
+  const secretSession = process.env.COOKIE_SECRET ?? 'dashboard_cookie_secret_for_local_development';
+  const routeur = (AdminJSExpress as unknown as {
+    buildAuthenticatedRouter: typeof import('@adminjs/express').default.buildAuthenticatedRouter;
+  }).buildAuthenticatedRouter(
+    administration,
+    {
+      authenticate: async (courriel, motDePasse) => authentifierAdministrateur(courriel, motDePasse),
+      cookieName: 'chatvardage-admin',
+      cookiePassword: secretSession,
+    },
+    undefined,
+    {
+      resave: false,
+      saveUninitialized: false,
+      secret: secretSession,
+    },
+  );
+
+  application.getHttpAdapter().getInstance().use(administration.options.rootPath, routeur);
+  await application.listen(process.env.PORT ?? 3000);
+}
+démarrerApplication();
