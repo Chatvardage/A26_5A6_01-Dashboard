@@ -280,6 +280,7 @@ describe('RessourceApiDistante', () => {
       json: async () => [
         { id: 'utilisateur-1', role: 'utilisateur' },
         { id: 'administrateur-1', role: 'ADMINISTRATEUR' },
+        { id: 'moderateur-1', role: 'moderateur' },
       ],
     } as Response);
     const ressource = new RessourceApiDistante({
@@ -294,5 +295,170 @@ describe('RessourceApiDistante', () => {
 
     await expect(ressource.count({ filters: { role: { value: 'user' } } }, contexte)).resolves.toBe(1);
     await expect(ressource.count({ filters: { role: { value: 'admin' } } }, contexte)).resolves.toBe(1);
+    await expect(ressource.count({ filters: { role: { value: 'moderateur' } } }, contexte)).resolves.toBe(1);
+  });
+
+  it('trie, pagine et retrouve les enregistrements demandes', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [
+        { id: '3', nom: 'Charlie' },
+        { id: '1', nom: 'Alpha' },
+        { id: '2', nom: 'Bravo' },
+      ],
+    } as Response);
+    const ressource = new RessourceApiDistante({
+      id: 'serveurs',
+      cheminListe: 'http://serveurs.test/api/servers',
+      cheminCreation: 'http://serveurs.test/api/servers',
+      cheminSuppression: (id) => `http://serveurs.test/api/servers/${id}`,
+      champsFiltrables: ['nom'],
+      champs: [
+        { path: 'id', type: 'uuid', isId: true },
+        { path: 'nom', type: 'string' },
+      ],
+    });
+    const contexte = { currentAdmin: { jeton: 'jeton-admin' } };
+
+    const enregistrements = await ressource.find({}, {
+      offset: 1,
+      limit: 1,
+      sort: { sortBy: 'nom', direction: 'asc' },
+    }, contexte);
+
+    expect(ressource.databaseName()).toBe('ChatVardage');
+    expect(ressource.id()).toBe('serveurs');
+    expect(ressource.properties()).toHaveLength(2);
+    expect(ressource.property('nom')?.path()).toBe('nom');
+    expect(ressource.property('inconnu')).toBeNull();
+    expect(enregistrements[0].params).toMatchObject({ id: '2', nom: 'Bravo' });
+    await expect(ressource.findOne('1', contexte)).resolves.toMatchObject({ params: { nom: 'Alpha' } });
+    await expect(ressource.findOne('inconnu', contexte)).resolves.toBeNull();
+    await expect(ressource.findMany(['1', 3], contexte)).resolves.toHaveLength(2);
+  });
+
+  it('supprime avec le jeton administrateur et gere les reponses sans contenu', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 204,
+      json: async () => undefined,
+    } as Response);
+    const ressource = new RessourceApiDistante({
+      id: 'serveurs',
+      cheminListe: 'http://serveurs.test/api/servers',
+      cheminCreation: 'http://serveurs.test/api/servers',
+      cheminSuppression: (id) => `http://serveurs.test/api/servers/${id}`,
+      champsFiltrables: [],
+      champs: [{ path: 'id', type: 'uuid', isId: true }],
+    });
+
+    await expect(ressource.delete('serveur-1', { currentAdmin: { jeton: 'jeton-admin' } })).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledWith('http://serveurs.test/api/servers/serveur-1', {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer jeton-admin' },
+    });
+    await expect(ressource.update()).rejects.toThrow('La modification est geree par le service proprietaire.');
+  });
+
+  it('refuse une session absente avant d appeler le service', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch');
+    const ressource = new RessourceApiDistante({
+      id: 'serveurs',
+      cheminListe: 'http://serveurs.test/api/servers',
+      cheminCreation: 'http://serveurs.test/api/servers',
+      cheminSuppression: (id) => `http://serveurs.test/api/servers/${id}`,
+      champsFiltrables: [],
+      champs: [{ path: 'id', type: 'uuid', isId: true }],
+    });
+
+    await expect(ressource.find({}, {})).rejects.toThrow('Session administrateur invalide. Reconnectez-vous.');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('tronque l apercu des messages longs', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [{ id: 'message-1', content: 'a'.repeat(121) }],
+    } as Response);
+    const ressource = new RessourceApiDistante({
+      id: 'messages',
+      cheminListe: 'http://messages.test/api/messages/admin',
+      cheminCreation: 'http://messages.test/api/messages/admin',
+      cheminSuppression: (id) => `http://messages.test/api/messages/admin/${id}`,
+      champsFiltrables: [],
+      champs: [{ path: 'id', type: 'uuid', isId: true }],
+    });
+
+    const [message] = await ressource.find({}, {}, { currentAdmin: { jeton: 'jeton-admin' } });
+
+    expect(message.params.apercu).toBe(`${'a'.repeat(120)}...`);
+  });
+
+  it('gere les filtres invalides, les identifiants et les erreurs sans corps JSON', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch');
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => [
+        { id: 'utilisateur-1', pseudo: 'Eva' },
+        { id: 'utilisateur-2', pseudo: 'Alex' },
+      ],
+    } as Response);
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => [
+        { id: 'utilisateur-1', pseudo: 'Eva' },
+        { id: 'utilisateur-2', pseudo: 'Alex' },
+      ],
+    } as Response);
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      json: async () => { throw new Error('Corps absent'); },
+    } as Response);
+    const ressource = new RessourceApiDistante({
+      id: 'utilisateurs',
+      cheminListe: 'http://auth.test/api/users',
+      cheminCreation: 'http://auth.test/api/users',
+      cheminSuppression: (id) => `http://auth.test/api/users/${id}`,
+      champsFiltrables: ['id', 'pseudo'],
+      champs: [{ path: 'id', type: 'uuid', isId: true }],
+    });
+    const contexte = { currentAdmin: { jeton: 'jeton-admin' } };
+
+    await expect(ressource.find({ filters: { pseudo: { value: 12 } } }, {}, contexte))
+      .resolves.toHaveLength(2);
+    await expect(ressource.find({ filters: { id: { value: 'utilisateur-2' } } }, {}, contexte))
+      .resolves.toHaveLength(1);
+    await expect(ressource.create({ pseudo: 'Eva' }, contexte)).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('gere les valeurs nulles, le tri descendant et les erreurs non standard', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch');
+    const enregistrements = [
+      { id: 'utilisateur-1', pseudo: null },
+      { id: 'utilisateur-2', pseudo: 'Beta' },
+    ];
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => enregistrements } as Response);
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => enregistrements } as Response);
+    fetchMock.mockRejectedValueOnce('Service indisponible');
+    const ressource = new RessourceApiDistante({
+      id: 'utilisateurs',
+      cheminListe: 'http://auth.test/api/users',
+      cheminCreation: 'http://auth.test/api/users',
+      cheminSuppression: (id) => `http://auth.test/api/users/${id}`,
+      champsFiltrables: ['pseudo'],
+      champs: [{ path: 'id', type: 'uuid', isId: true }],
+    });
+    const contexte = { currentAdmin: { jeton: 'jeton-admin' } };
+
+    await expect(ressource.find({ filters: { pseudo: { value: 'absent' } } }, {}, contexte))
+      .resolves.toHaveLength(0);
+    await expect(ressource.find({}, { sort: { sortBy: 'pseudo', direction: 'desc' } }, contexte))
+      .resolves.toHaveLength(2);
+    await expect(ressource.create({ pseudo: 'Eva' }, contexte)).rejects.toMatchObject({ statusCode: 400 });
   });
 });

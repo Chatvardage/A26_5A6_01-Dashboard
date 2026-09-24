@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 
-import options from './options.js';
+import options, { optionsRessource } from './options.js';
 import { RessourceApiDistante } from './remote-api-resource.js';
 
 describe('Options AdminJS', () => {
@@ -76,7 +76,15 @@ describe('Options AdminJS', () => {
         return {
           ok: true,
           status: 200,
-          json: async () => ({ serveurs: [{ id: 'serveur-1' }], suivant: null }),
+          json: async () => ({ serveurs: [{ id: 'serveur-1' }, { id: 'serveur-2' }], suivant: null }),
+        } as Response;
+      }
+
+      if (chemin.endsWith('/api/servers/serveur-2')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ id: 'serveur-2', nom: 'Sans salons', salons: 'invalide' }),
         } as Response;
       }
 
@@ -88,7 +96,7 @@ describe('Options AdminJS', () => {
           nom: 'Projet',
           salons: [{
             id: 'salon-1', nom: 'general', acces: 'tous', ecriture: 'tous', position: 0,
-          }],
+          }, null, 'invalide'],
         }),
       } as Response;
     });
@@ -111,6 +119,81 @@ describe('Options AdminJS', () => {
     );
   });
 
+  it('charge toutes les pages de serveurs et transforme leurs proprietes', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const chemin = String(input);
+      if (chemin.endsWith('/api/admin/servers?decalage=0&limite=100')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            serveurs: [{ id: 'serveur-1', nom: 'Projet', public: true, nombreMembres: 4 }],
+            suivant: 100,
+          }),
+        } as Response;
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          serveurs: [{ id: 'serveur-2', nom: 'Prive', public: false, nombreMembres: 2 }],
+          suivant: null,
+        }),
+      } as Response;
+    });
+    const ressources = options.resources ?? [];
+    const serveurs = ressources[1].resource as RessourceApiDistante;
+
+    const enregistrements = await serveurs.find({}, {}, { currentAdmin: { jeton: 'jeton-admin' } });
+
+    expect(enregistrements).toHaveLength(2);
+    expect(enregistrements.map((enregistrement) => enregistrement.params)).toEqual([
+      expect.objectContaining({ name: 'Projet', visibility: 'public', memberCount: 4 }),
+      expect.objectContaining({ name: 'Prive', visibility: 'private', memberCount: 2 }),
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3003/api/admin/servers?decalage=100&limite=100',
+      expect.objectContaining({ headers: { Authorization: 'Bearer jeton-admin' } }),
+    );
+  });
+
+  it('adapte les creations et suppressions de chaque ressource', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (_input, initialisation) => ({
+      ok: true,
+      status: initialisation?.method === 'DELETE' ? 204 : 201,
+      json: async () => ({ id: 'element-1', nom: 'Element', public: true }),
+    } as Response));
+    const ressources = options.resources ?? [];
+    const [utilisateurs, serveurs, salons, messages] = ressources.map(
+      (ressource) => ressource.resource as RessourceApiDistante,
+    );
+    const contexte = { currentAdmin: { jeton: 'jeton-admin' } };
+
+    await utilisateurs.delete('utilisateur-1', contexte);
+    await serveurs.create({ name: 'Public', visibility: 'public' }, contexte);
+    await serveurs.delete('serveur-1', contexte);
+    await salons.create({
+      serverId: 'serveur-1', name: 'general', access: 'tous', writing: 'tous',
+    }, contexte);
+    await salons.delete('salon-1', contexte);
+    await messages.create({
+      senderId: 'utilisateur-1', recipientId: 'utilisateur-2', content: 'Bonjour',
+    }, contexte);
+    await messages.delete('message-1', contexte);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3003/api/servers/serveur-1/channels',
+      expect.objectContaining({
+        body: JSON.stringify({ nom: 'general', acces: 'tous', ecriture: 'tous' }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3004/api/messages/admin/message-1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
   it('configure une langue francaise avec une langue de repli', () => {
     expect(options.locale).toMatchObject({
       language: 'fr',
@@ -121,6 +204,14 @@ describe('Options AdminJS', () => {
           messages: { welcomeOnBoard_title: 'Bienvenue dans ChatVardage!' },
         },
       },
+    });
+  });
+
+  it('utilise les valeurs par defaut des options de ressource', () => {
+    expect(optionsRessource('Test', ['id'], ['nom'], ['nom'])).toMatchObject({
+      showProperties: ['id'],
+      properties: {},
+      actions: { new: { isVisible: true } },
     });
   });
 

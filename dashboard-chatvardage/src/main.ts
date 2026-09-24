@@ -5,7 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import options from './admin/options.js';
 import { ModuleApplication } from './app.module.js';
 
-async function authentifierAdministrateur(courriel: string, motDePasse: string) {
+export async function authentifierAdministrateur(courriel: string, motDePasse: string) {
   try {
     const urlAuthentification = (process.env.AUTH_SERVICE_URL ?? 'http://localhost:3001').replace(/\/$/, '');
     const reponse = await fetch(`${urlAuthentification}/api/auth/login`, {
@@ -34,7 +34,7 @@ async function authentifierAdministrateur(courriel: string, motDePasse: string) 
   }
 }
 
-async function démarrerApplication() {
+export async function démarrerApplication() {
   const application = await NestFactory.create(ModuleApplication);
   const administration = new AdminJS(options);
   const secretSession = process.env.COOKIE_SECRET ?? 'dashboard_cookie_secret_for_local_development';
@@ -58,4 +58,6 @@ async function démarrerApplication() {
   application.getHttpAdapter().getInstance().use(administration.options.rootPath, routeur);
   await application.listen(process.env.PORT ?? 3000);
 }
-démarrerApplication();
+
+/* istanbul ignore next -- the production entry point would open a real server during Jest. */
+if (process.env.NODE_ENV !== 'test') démarrerApplication();

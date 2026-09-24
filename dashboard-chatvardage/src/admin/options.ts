@@ -51,7 +51,7 @@ const chargerTousLesSalons = (
   });
 };
 
-const optionsRessource = (
+export const optionsRessource = (
   nom: string,
   colonnes: string[],
   champsCreation: string[],
