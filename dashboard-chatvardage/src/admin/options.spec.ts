@@ -192,6 +192,12 @@ describe('Options AdminJS', () => {
       'http://localhost:3004/api/messages/rooms/salon-1/history?limit=100',
       expect.objectContaining({ headers: { Authorization: 'Bearer jeton-admin' } }),
     );
+
+    await messages.delete('salon-1-message', { currentAdmin: { jeton: 'jeton-admin' } });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3004/api/messages/rooms/salon-1/salon-1-message',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
   });
 
   it('conserve les messages disponibles lorsqu un salon ne peut pas etre charge', async () => {
@@ -318,7 +324,7 @@ describe('Options AdminJS', () => {
     await messages.create({
       senderId: 'utilisateur-1', channelId: 'salon-1', content: 'Bonjour le salon',
     }, contexte);
-    await messages.delete('message-1', contexte);
+    await messages.delete('element-1', contexte);
 
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:3003/api/servers/serveur-1/channels',
@@ -346,7 +352,7 @@ describe('Options AdminJS', () => {
       }),
     );
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:3004/api/messages/admin/message-1',
+      'http://localhost:3004/api/messages/admin/element-1',
       expect.objectContaining({ method: 'DELETE' }),
     );
   });

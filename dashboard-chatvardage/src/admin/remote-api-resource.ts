@@ -17,7 +17,8 @@ type ConfigurationRessourceDistante = {
   id: string;
   cheminListe: string;
   cheminCreation: string | ((parametres: Record<string, unknown>) => string);
-  cheminSuppression: (id: string) => string;
+  cheminSuppression: (id: string, enregistrement?: Record<string, unknown>) => string;
+  suppressionDependanteEnregistrement?: boolean;
   champs: ChampRessource[];
   champsFiltrables: string[];
   transformerCreation?: (parametres: Record<string, unknown>) => Record<string, unknown>;
@@ -134,8 +135,16 @@ export class RessourceApiDistante extends BaseResource {
   }
 
   async delete(identifiant: string, contexte?: unknown): Promise<void> {
+    const enregistrement = this.configuration.suppressionDependanteEnregistrement
+      ? (await this.chargerEnregistrements(contexte)).find(
+        (element) => String(element.id) === identifiant,
+      )
+      : undefined;
+    if (this.configuration.suppressionDependanteEnregistrement && !enregistrement) {
+      throw new Error('Element introuvable pour la suppression.');
+    }
     await RessourceApiDistante.requete(
-      this.configuration.cheminSuppression(identifiant),
+      this.configuration.cheminSuppression(identifiant, enregistrement),
       contexte,
       { method: 'DELETE' },
     );

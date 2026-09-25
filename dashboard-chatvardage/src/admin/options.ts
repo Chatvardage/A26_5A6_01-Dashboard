@@ -127,6 +127,11 @@ const cheminCreationMessagesDeSalon = (channelId: string): string => urlDuServic
   'http://localhost:3004',
   `/api/messages/rooms/${channelId}/admin`,
 );
+const cheminSuppressionMessageDeSalon = (channelId: string, id: string): string => urlDuService(
+  'MESSAGE_SERVICE_URL',
+  'http://localhost:3004',
+  `/api/messages/rooms/${channelId}/${id}`,
+);
 
 const options: AdminJSOptions = {
   componentLoader: chargeurComposants,
@@ -374,11 +379,10 @@ const options: AdminJSOptions = {
         cheminCreation: ({ channelId }) => (channelId
           ? cheminCreationMessagesDeSalon(String(channelId))
           : cheminMessages),
-        cheminSuppression: (id) => urlDuService(
-          'MESSAGE_SERVICE_URL',
-          'http://localhost:3004',
-          `/api/messages/admin/${id}`,
-        ),
+        cheminSuppression: (id, message) => (typeof message?.channelId === 'string'
+          ? cheminSuppressionMessageDeSalon(message.channelId, id)
+          : urlDuService('MESSAGE_SERVICE_URL', 'http://localhost:3004', `/api/messages/admin/${id}`)),
+        suppressionDependanteEnregistrement: true,
         champsFiltrables: ['recipientId', 'senderId', 'serverId', 'serverName', 'channelId', 'channelName'],
         chargerEnregistrements: chargerTousLesMessages(
           cheminMessages,
