@@ -273,6 +273,37 @@ describe('RessourceApiDistante', () => {
     )).rejects.toMatchObject({ statusCode: 400 });
   });
 
+  it('refuse une creation non confirmee par la lecture suivante', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch');
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      json: async () => ({ id: 'message-1', content: 'Bonjour' }),
+    } as Response);
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => [],
+    } as Response);
+    const ressource = new RessourceApiDistante({
+      id: 'messages',
+      cheminListe: 'http://messages.test/api/messages/admin',
+      cheminCreation: 'http://messages.test/api/messages',
+      cheminSuppression: (id) => `http://messages.test/api/messages/admin/${id}`,
+      champsFiltrables: [],
+      verifierCreation: true,
+      champs: [{ path: 'id', type: 'uuid', isId: true }],
+    });
+
+    await expect(ressource.create(
+      { recipientId: 'utilisateur-1', content: 'Bonjour' },
+      { currentAdmin: { jeton: 'jeton-admin' } },
+    )).rejects.toMatchObject({
+      statusCode: 400,
+      baseError: { message: 'Le message n a pas ete confirme par le service.' },
+    });
+  });
+
   it('normalise les roles historiques pour le filtre', async () => {
     jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,

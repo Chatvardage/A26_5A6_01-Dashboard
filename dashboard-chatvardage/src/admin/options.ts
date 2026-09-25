@@ -1,6 +1,6 @@
 import type { AdminJSOptions } from 'adminjs';
 
-import chargeurComposants from './component-loader.js';
+import chargeurComposants, { composantDestinationMessage } from './component-loader.js';
 import {
   type ChargeurEnregistrements,
   RessourceApiDistante,
@@ -23,7 +23,7 @@ const chargerPageServeurs = async (
   decalage = 0,
 ): Promise<Record<string, unknown>[]> => {
   const page = await requete<PageServeurs>(`${chemin}?decalage=${decalage}&limite=100`);
-  if (page.suivant === null) return page.serveurs;
+  if (page.suivant == null) return page.serveurs;
 
   const autresServeurs = await chargerPageServeurs(requete, chemin, page.suivant);
   return [...page.serveurs, ...autresServeurs];
@@ -47,8 +47,46 @@ const chargerTousLesSalons = (
     const salons = Array.isArray(serveur.salons) ? serveur.salons : [];
     return salons
       .filter((salon): salon is Record<string, unknown> => typeof salon === 'object' && salon !== null)
-      .map((salon) => ({ ...salon, serverId: serveur.id, serverName: serveur.nom }));
+      .map((salon) => ({
+        ...salon,
+        serverId: serveur.id,
+        serverName: serveur.nom,
+        referenceName: `${salon.nom} (${serveur.nom})`,
+      }));
   });
+};
+
+const chargerTousLesMessages = (
+  cheminMessages: string,
+  cheminMessagesDeSalon: (channelId: string) => string,
+  cheminListeServeurs: string,
+  cheminServeurs: string,
+): ChargeurEnregistrements => async (requete) => {
+  const [messagesPrives, salons] = await Promise.all([
+    requete<Record<string, unknown>[]>(cheminMessages),
+    chargerTousLesSalons(cheminListeServeurs, cheminServeurs)(requete),
+  ]);
+  const messagesDeSalon = await Promise.all(salons.map(async (salon) => {
+    try {
+      const channelId = String(salon.id);
+      const messages = await requete<Record<string, unknown>[]>(cheminMessagesDeSalon(channelId));
+      return messages.map((message) => ({
+        ...message,
+        messageType: 'Salon',
+        channelId,
+        channelName: salon.nom,
+        serverId: salon.serverId,
+        serverName: salon.serverName,
+      }));
+    } catch {
+      return [];
+    }
+  }));
+
+  return [
+    ...messagesPrives.map((message) => ({ ...message, messageType: 'Prive' })),
+    ...messagesDeSalon.flat(),
+  ];
 };
 
 export const optionsRessource = (
@@ -78,6 +116,17 @@ export const optionsRessource = (
 
 const cheminListeServeurs = urlDuService('ROOM_SERVICE_URL', 'http://localhost:3003', '/api/admin/servers');
 const cheminServeurs = urlDuService('ROOM_SERVICE_URL', 'http://localhost:3003', '/api/servers');
+const cheminMessages = urlDuService('MESSAGE_SERVICE_URL', 'http://localhost:3004', '/api/messages/admin');
+const cheminMessagesDeSalon = (channelId: string): string => urlDuService(
+  'MESSAGE_SERVICE_URL',
+  'http://localhost:3004',
+  `/api/messages/rooms/${channelId}/history?limit=100`,
+);
+const cheminCreationMessagesDeSalon = (channelId: string): string => urlDuService(
+  'MESSAGE_SERVICE_URL',
+  'http://localhost:3004',
+  `/api/messages/rooms/${channelId}/admin`,
+);
 
 const options: AdminJSOptions = {
   componentLoader: chargeurComposants,
@@ -266,6 +315,7 @@ const options: AdminJSOptions = {
           { path: 'id', type: 'uuid', isId: true },
           { path: 'serverId', type: 'uuid' },
           { path: 'name', type: 'string', isSortable: true },
+          { path: 'referenceName', type: 'string' },
           { path: 'serverName', type: 'string', isSortable: true },
           { path: 'access', type: 'string', isSortable: true },
           { path: 'writing', type: 'string', isSortable: true },
@@ -280,6 +330,13 @@ const options: AdminJSOptions = {
         {
           id: { label: 'Identifiant' },
           name: { label: 'Nom', isRequired: true },
+          referenceName: {
+            label: 'Salon',
+            isTitle: true,
+            isVisible: {
+              list: false, show: false, edit: false, filter: false,
+            },
+          },
           serverId: {
             label: 'Serveur',
             isRequired: true,
@@ -306,34 +363,54 @@ const options: AdminJSOptions = {
           position: { label: 'Position' },
           createdBy: { label: 'Cree par' },
         },
-        'name',
+        'referenceName',
         ['name', 'serverName', 'access', 'writing', 'position', 'createdBy'],
       ),
     },
     {
       resource: new RessourceApiDistante({
         id: 'messages',
-        cheminListe: urlDuService(
-          'MESSAGE_SERVICE_URL',
-          'http://localhost:3004',
-          '/api/messages/admin',
-        ),
-        cheminCreation: urlDuService(
-          'MESSAGE_SERVICE_URL',
-          'http://localhost:3004',
-          '/api/messages/admin',
-        ),
+        cheminListe: cheminMessages,
+        cheminCreation: ({ channelId }) => (channelId
+          ? cheminCreationMessagesDeSalon(String(channelId))
+          : cheminMessages),
         cheminSuppression: (id) => urlDuService(
           'MESSAGE_SERVICE_URL',
           'http://localhost:3004',
           `/api/messages/admin/${id}`,
         ),
-        champsFiltrables: ['recipientId', 'senderId'],
-        transformerCreation: ({ senderId, recipientId, content }) => ({ senderId, recipientId, content }),
+        champsFiltrables: ['recipientId', 'senderId', 'serverId', 'serverName', 'channelId', 'channelName'],
+        chargerEnregistrements: chargerTousLesMessages(
+          cheminMessages,
+          cheminMessagesDeSalon,
+          cheminListeServeurs,
+          cheminServeurs,
+        ),
+        transformerCreation: ({
+          senderId, recipientId, channelId, content,
+        }) => (channelId
+          ? { authorId: senderId, content }
+          : { senderId, recipientId, content }),
+        transformerLecture: (message) => ({
+          ...message,
+          ...(typeof message.authorId === 'string' ? { senderId: message.authorId } : {}),
+          ...(typeof message.roomId === 'string' ? { channelId: message.roomId } : {}),
+        }),
+        validerCreation: ({ recipientId, channelId }) => {
+          if (Boolean(recipientId) === Boolean(channelId)) {
+            throw new Error('Choisissez soit un destinataire, soit un salon.');
+          }
+        },
+        verifierCreation: true,
         champs: [
           { path: 'id', type: 'uuid', isId: true },
+          { path: 'messageType', type: 'string', isSortable: true },
           { path: 'senderId', type: 'uuid', isSortable: true },
           { path: 'recipientId', type: 'uuid', isSortable: true },
+          { path: 'serverId', type: 'uuid' },
+          { path: 'serverName', type: 'string', isSortable: true },
+          { path: 'channelId', type: 'uuid' },
+          { path: 'channelName', type: 'string', isSortable: true },
           { path: 'content', type: 'textarea' },
           { path: 'apercu', type: 'string' },
           { path: 'createdAt', type: 'datetime', isSortable: true },
@@ -342,17 +419,32 @@ const options: AdminJSOptions = {
       }),
       options: optionsRessource(
         'Messages',
-        ['senderId', 'recipientId', 'apercu', 'createdAt'],
-        ['senderId', 'recipientId', 'content'],
-        ['recipientId', 'senderId'],
+        ['messageType', 'senderId', 'recipientId', 'serverName', 'channelName', 'apercu', 'createdAt'],
+        ['senderId', 'recipientId', 'channelId', 'content'],
+        ['messageType', 'recipientId', 'senderId', 'serverId', 'serverName', 'channelId', 'channelName'],
         {
           id: { label: 'Identifiant' },
+          messageType: { label: 'Type de message' },
           senderId: {
             label: 'Expediteur',
             isRequired: true,
             reference: 'utilisateurs',
           },
-          recipientId: { label: 'Destinataire', isRequired: true, reference: 'utilisateurs' },
+          recipientId: {
+            label: 'Destinataire',
+            description: 'Choisissez un destinataire ou un salon, pas les deux.',
+            reference: 'utilisateurs',
+            components: { edit: composantDestinationMessage },
+          },
+          serverId: { label: 'Serveur' },
+          serverName: { label: 'Serveur' },
+          channelId: {
+            label: 'Salon',
+            description: 'Choisissez un destinataire ou un salon, pas les deux.',
+            reference: 'salons',
+            components: { edit: composantDestinationMessage },
+          },
+          channelName: { label: 'Salon' },
           content: { label: 'Contenu', isRequired: true },
           apercu: {
             label: 'Apercu',
@@ -363,7 +455,7 @@ const options: AdminJSOptions = {
           updatedAt: { label: 'Modifie le' },
         },
         'apercu',
-        ['senderId', 'recipientId', 'content', 'createdAt'],
+        ['messageType', 'senderId', 'recipientId', 'serverName', 'channelName', 'content', 'createdAt'],
       ),
     },
   ],

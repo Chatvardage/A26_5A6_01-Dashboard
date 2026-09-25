@@ -1,9 +1,15 @@
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+
 import AdminJS from 'adminjs';
 import AdminJSExpress from '@adminjs/express';
 import { NestFactory } from '@nestjs/core';
+import express from 'express';
 
 import options from './admin/options.js';
 import { ModuleApplication } from './app.module.js';
+
+const cheminBundleComposants = fileURLToPath(new URL('../.adminjs/bundle.js', import.meta.url));
 
 export async function authentifierAdministrateur(courriel: string, motDePasse: string) {
   try {
@@ -38,6 +44,14 @@ export async function démarrerApplication() {
   const application = await NestFactory.create(ModuleApplication);
   const administration = new AdminJS(options);
   const secretSession = process.env.COOKIE_SECRET ?? 'dashboard_cookie_secret_for_local_development';
+  const routeurHttp = express.Router();
+  routeurHttp.get('/frontend/assets/components.bundle.js', async (_requete, reponse, suivant) => {
+    try {
+      reponse.type('application/javascript').send(await readFile(cheminBundleComposants, 'utf8'));
+    } catch (erreur) {
+      suivant(erreur);
+    }
+  });
   const routeur = (AdminJSExpress as unknown as {
     buildAuthenticatedRouter: typeof import('@adminjs/express').default.buildAuthenticatedRouter;
   }).buildAuthenticatedRouter(
@@ -47,7 +61,7 @@ export async function démarrerApplication() {
       cookieName: 'chatvardage-admin',
       cookiePassword: secretSession,
     },
-    undefined,
+    routeurHttp,
     {
       resave: false,
       saveUninitialized: false,

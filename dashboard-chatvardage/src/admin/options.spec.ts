@@ -1,5 +1,6 @@
 import { jest } from '@jest/globals';
 
+import { composantDestinationMessage } from './component-loader.js';
 import options, { optionsRessource } from './options.js';
 import { RessourceApiDistante } from './remote-api-resource.js';
 
@@ -24,17 +25,23 @@ describe('Options AdminJS', () => {
       ['pseudo', 'courriel', 'mot_de_passe', 'role'],
       ['name', 'visibility'],
       ['serverId', 'name', 'access', 'writing'],
-      ['senderId', 'recipientId', 'content'],
+      ['senderId', 'recipientId', 'channelId', 'content'],
     ]);
     expect(ressources[3].options?.listProperties).toEqual([
+      'messageType',
       'senderId',
       'recipientId',
+      'serverName',
+      'channelName',
       'apercu',
       'createdAt',
     ]);
     expect(ressources[3].options?.showProperties).toEqual([
+      'messageType',
       'senderId',
       'recipientId',
+      'serverName',
+      'channelName',
       'content',
       'createdAt',
     ]);
@@ -42,7 +49,7 @@ describe('Options AdminJS', () => {
       ['pseudo', 'courriel', 'role'],
       ['name', 'visibility'],
       ['serverId', 'serverName', 'name', 'access', 'writing'],
-      ['recipientId', 'senderId'],
+      ['messageType', 'recipientId', 'senderId', 'serverId', 'serverName', 'channelId', 'channelName'],
     ]);
   });
 
@@ -67,6 +74,14 @@ describe('Options AdminJS', () => {
     });
     expect(ressources[3].options?.properties?.senderId).toMatchObject({ reference: 'utilisateurs' });
     expect(ressources[3].options?.properties?.recipientId).toMatchObject({ reference: 'utilisateurs' });
+    expect(ressources[3].options?.properties?.recipientId).toMatchObject({
+      components: { edit: composantDestinationMessage },
+      description: 'Choisissez un destinataire ou un salon, pas les deux.',
+    });
+    expect(ressources[3].options?.properties?.channelId).toMatchObject({
+      components: { edit: composantDestinationMessage },
+      description: 'Choisissez un destinataire ou un salon, pas les deux.',
+    });
   });
 
   it('charge les salons a partir des serveurs administrables', async () => {
@@ -110,6 +125,7 @@ describe('Options AdminJS', () => {
       name: 'general',
       serverId: 'serveur-1',
       serverName: 'Projet',
+      referenceName: 'general (Projet)',
       access: 'tous',
       writing: 'tous',
     });
@@ -117,6 +133,104 @@ describe('Options AdminJS', () => {
       'http://localhost:3003/api/servers/serveur-1',
       expect.objectContaining({ headers: { Authorization: 'Bearer jeton-admin' } }),
     );
+  });
+
+  it('charge les messages prives et les messages de salon avec leur provenance', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const chemin = String(input);
+      if (chemin.endsWith('/api/messages/admin')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [{ id: 'prive-1', senderId: 'utilisateur-1', recipientId: 'utilisateur-2' }],
+        } as Response;
+      }
+      if (chemin.endsWith('/api/admin/servers?decalage=0&limite=100')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ serveurs: [{ id: 'serveur-1' }], suivant: null }),
+        } as Response;
+      }
+      if (chemin.endsWith('/api/servers/serveur-1')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            id: 'serveur-1', nom: 'Projet', salons: [{ id: 'salon-1', nom: 'general' }],
+          }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [{
+          id: 'salon-1-message', roomId: 'salon-1', authorId: 'utilisateur-1', content: 'Bonjour le salon',
+        }],
+      } as Response;
+    });
+    const ressources = options.resources ?? [];
+    const messages = ressources[3].resource as RessourceApiDistante;
+
+    const enregistrements = await messages.find({}, {}, { currentAdmin: { jeton: 'jeton-admin' } });
+
+    expect(enregistrements.map((enregistrement) => enregistrement.params)).toEqual([
+      expect.objectContaining({
+        id: 'prive-1', recipientId: 'utilisateur-2', messageType: 'Prive',
+      }),
+      expect.objectContaining({
+        id: 'salon-1-message',
+        messageType: 'Salon',
+        serverId: 'serveur-1',
+        serverName: 'Projet',
+        channelId: 'salon-1',
+        channelName: 'general',
+        senderId: 'utilisateur-1',
+      }),
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3004/api/messages/rooms/salon-1/history?limit=100',
+      expect.objectContaining({ headers: { Authorization: 'Bearer jeton-admin' } }),
+    );
+  });
+
+  it('conserve les messages disponibles lorsqu un salon ne peut pas etre charge', async () => {
+    jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const chemin = String(input);
+      if (chemin.endsWith('/api/messages/admin')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [{ id: 'prive-1', senderId: 'utilisateur-1', recipientId: 'utilisateur-2' }],
+        } as Response;
+      }
+      if (chemin.endsWith('/api/admin/servers?decalage=0&limite=100')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ serveurs: [{ id: 'serveur-1' }], suivant: null }),
+        } as Response;
+      }
+      if (chemin.endsWith('/api/servers/serveur-1')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            id: 'serveur-1', nom: 'Projet', salons: [{ id: 'salon-1', nom: 'general' }],
+          }),
+        } as Response;
+      }
+      return {
+        ok: false,
+        status: 500,
+        json: async () => ({ message: 'Erreur interne' }),
+      } as Response;
+    });
+    const ressources = options.resources ?? [];
+    const messages = ressources[3].resource as RessourceApiDistante;
+
+    await expect(messages.find({}, {}, { currentAdmin: { jeton: 'jeton-admin' } }))
+      .resolves.toHaveLength(1);
   });
 
   it('charge toutes les pages de serveurs et transforme leurs proprietes', async () => {
@@ -127,7 +241,9 @@ describe('Options AdminJS', () => {
           ok: true,
           status: 200,
           json: async () => ({
-            serveurs: [{ id: 'serveur-1', nom: 'Projet', public: true, nombreMembres: 4 }],
+            serveurs: [{
+              id: 'serveur-1', nom: 'Projet', public: true, nombreMembres: 4,
+            }],
             suivant: 100,
           }),
         } as Response;
@@ -137,7 +253,9 @@ describe('Options AdminJS', () => {
         ok: true,
         status: 200,
         json: async () => ({
-          serveurs: [{ id: 'serveur-2', nom: 'Prive', public: false, nombreMembres: 2 }],
+          serveurs: [{
+            id: 'serveur-2', nom: 'Prive', public: false, nombreMembres: 2,
+          }],
           suivant: null,
         }),
       } as Response;
@@ -159,11 +277,28 @@ describe('Options AdminJS', () => {
   });
 
   it('adapte les creations et suppressions de chaque ressource', async () => {
-    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (_input, initialisation) => ({
-      ok: true,
-      status: initialisation?.method === 'DELETE' ? 204 : 201,
-      json: async () => ({ id: 'element-1', nom: 'Element', public: true }),
-    } as Response));
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input, initialisation) => {
+      const chemin = String(input);
+      if (chemin.endsWith('/api/messages/admin') && initialisation?.method === undefined) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => [{ id: 'element-1' }],
+        } as Response;
+      }
+      if (chemin.endsWith('/api/admin/servers?decalage=0&limite=100')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ serveurs: [], suivant: null }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: initialisation?.method === 'DELETE' ? 204 : 201,
+        json: async () => ({ id: 'element-1', nom: 'Element', public: true }),
+      } as Response;
+    });
     const ressources = options.resources ?? [];
     const [utilisateurs, serveurs, salons, messages] = ressources.map(
       (ressource) => ressource.resource as RessourceApiDistante,
@@ -180,6 +315,9 @@ describe('Options AdminJS', () => {
     await messages.create({
       senderId: 'utilisateur-1', recipientId: 'utilisateur-2', content: 'Bonjour',
     }, contexte);
+    await messages.create({
+      senderId: 'utilisateur-1', channelId: 'salon-1', content: 'Bonjour le salon',
+    }, contexte);
     await messages.delete('message-1', contexte);
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -189,9 +327,42 @@ describe('Options AdminJS', () => {
       }),
     );
     expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3004/api/messages/admin',
+      expect.objectContaining({
+        body: JSON.stringify({
+          senderId: 'utilisateur-1',
+          recipientId: 'utilisateur-2',
+          content: 'Bonjour',
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3004/api/messages/rooms/salon-1/admin',
+      expect.objectContaining({
+        body: JSON.stringify({
+          authorId: 'utilisateur-1',
+          content: 'Bonjour le salon',
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:3004/api/messages/admin/message-1',
       expect.objectContaining({ method: 'DELETE' }),
     );
+  });
+
+  it('refuse un message sans destination ou avec deux destinations', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch');
+    const ressources = options.resources ?? [];
+    const messages = ressources[3].resource as RessourceApiDistante;
+    const contexte = { currentAdmin: { jeton: 'jeton-admin' } };
+
+    await expect(messages.create({ senderId: 'utilisateur-1', content: 'Bonjour' }, contexte))
+      .rejects.toMatchObject({ baseError: { message: 'Choisissez soit un destinataire, soit un salon.' } });
+    await expect(messages.create({
+      senderId: 'utilisateur-1', recipientId: 'utilisateur-2', channelId: 'salon-1', content: 'Bonjour',
+    }, contexte)).rejects.toMatchObject({ baseError: { message: 'Choisissez soit un destinataire, soit un salon.' } });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('configure une langue francaise avec une langue de repli', () => {
@@ -236,6 +407,8 @@ describe('Options AdminJS', () => {
     expect(ressources[0].options?.properties?.pseudo).toMatchObject({ isTitle: true });
     expect(ressources[1].options?.titleProperty).toBe('name');
     expect(ressources[1].options?.properties?.name).toMatchObject({ isTitle: true });
+    expect(ressources[2].options?.titleProperty).toBe('referenceName');
+    expect(ressources[2].options?.properties?.referenceName).toMatchObject({ isTitle: true });
     expect(ressources[3].options?.titleProperty).toBe('apercu');
     expect(ressources[3].options?.properties?.apercu).toMatchObject({ isTitle: true });
   });

@@ -21,6 +21,8 @@ type ConfigurationRessourceDistante = {
   champs: ChampRessource[];
   champsFiltrables: string[];
   transformerCreation?: (parametres: Record<string, unknown>) => Record<string, unknown>;
+  validerCreation?: (parametres: Record<string, unknown>) => void;
+  verifierCreation?: boolean;
   transformerLecture?: (enregistrement: Record<string, unknown>) => Record<string, unknown>;
   chargerEnregistrements?: ChargeurEnregistrements;
 };
@@ -93,6 +95,7 @@ export class RessourceApiDistante extends BaseResource {
 
   async create(parametres: Record<string, unknown>, contexte?: unknown): Promise<Record<string, unknown>> {
     try {
+      this.configuration.validerCreation?.(parametres);
       const cheminCreation = typeof this.configuration.cheminCreation === 'function'
         ? this.configuration.cheminCreation(parametres)
         : this.configuration.cheminCreation;
@@ -107,6 +110,11 @@ export class RessourceApiDistante extends BaseResource {
       );
 
       if (!enregistrement.id) throw new Error('Le service n a pas retourne l identifiant de l element cree.');
+      if (this.configuration.verifierCreation) {
+        const enregistrements = await this.chargerEnregistrements(contexte);
+        const estCree = enregistrements.some((element) => String(element.id) === String(enregistrement.id));
+        if (!estCree) throw new Error('Le message n a pas ete confirme par le service.');
+      }
       return this.transformerLecture(enregistrement);
     } catch (erreur) {
       const message = erreur instanceof Error ? erreur.message : 'La creation a echoue.';
