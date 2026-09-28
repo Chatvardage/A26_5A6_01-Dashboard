@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import type { AdminJSOptions } from 'adminjs';
+import { ValidationError, type AdminJSOptions } from 'adminjs';
 
 import chargeurComposants, { composantDestinationMessage } from './component-loader.js';
 import {
@@ -313,7 +313,7 @@ const options: AdminJSOptions = {
         chargerEnregistrements: chargerTousLesSalons(cheminListeServeurs, cheminServeurs),
         validerCreation: ({ serverId }) => {
           if (typeof serverId !== 'string' || !serverId.trim()) {
-            throw new Error('serverId: Le serveur est requis.');
+            throw new ValidationError({ serverId: { message: 'Le serveur est requis.' } });
           }
         },
         transformerCreation: ({ name, access, writing }) => ({
@@ -416,7 +416,7 @@ const options: AdminJSOptions = {
         }),
         validerCreation: ({ recipientId, channelId }) => {
           if (Boolean(recipientId) === Boolean(channelId)) {
-            throw new Error('Choisissez soit un destinataire, soit un salon.');
+            throw new ValidationError({}, { message: 'Choisissez soit un destinataire, soit un salon.' });
           }
         },
         verifierCreation: true,

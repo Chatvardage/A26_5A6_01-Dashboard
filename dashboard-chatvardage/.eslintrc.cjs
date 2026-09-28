@@ -13,7 +13,7 @@ module.exports = {
   rules: {
     indent: ['error', 2],
     'max-len': ['error', 120],
-    'linebreak-style': ['error', 'unix'],
+    'linebreak-style': process.platform === 'win32' ? 'off' : ['error', 'unix'],
     quotes: ['error', 'single'],
     semi: ['error', 'always'],
     'no-underscore-dangle': 'off',

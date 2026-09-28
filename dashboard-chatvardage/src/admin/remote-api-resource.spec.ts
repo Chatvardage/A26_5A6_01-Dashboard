@@ -60,7 +60,7 @@ describe('RessourceApiDistante', () => {
     await expect(ressource.count(filtre, contexte)).resolves.toBe(1);
     await expect(ressource.find(filtre, {}, contexte)).resolves.toHaveLength(1);
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('retourne une erreur de validation au champ indique par le service', async () => {
@@ -110,9 +110,132 @@ describe('RessourceApiDistante', () => {
     await expect(ressource.create(
       { pseudo: 'eva' },
       { currentAdmin: { jeton: 'jeton-admin' } },
-    )).rejects.toMatchObject({
-      baseError: { message: 'Service indisponible depuis 12:30' },
+    )).rejects.toThrow('Service indisponible depuis 12:30');
+  });
+
+  it('traite les 400 sans champ connu comme une erreur generale de formulaire', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch');
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ message: 'champInconnu: valeur invalide' }),
+    } as Response);
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({ message: 'La valeur est invalide' }),
+    } as Response);
+    const ressource = new RessourceApiDistante({
+      id: 'utilisateurs',
+      cheminListe: 'http://auth.test/api/users',
+      cheminCreation: 'http://auth.test/api/users',
+      cheminSuppression: (id) => `http://auth.test/api/users/${id}`,
+      champsFiltrables: [],
+      champs: [{ path: 'id', type: 'uuid', isId: true }],
     });
+    const contexte = { currentAdmin: { jeton: 'jeton-admin' } };
+
+    await expect(ressource.create({ pseudo: 'Eva' }, contexte)).rejects.toMatchObject({
+      baseError: { message: 'champInconnu: valeur invalide' },
+    });
+    await expect(ressource.create({ pseudo: 'Eva' }, contexte)).rejects.toMatchObject({
+      baseError: { message: 'La valeur est invalide' },
+    });
+  });
+
+  it('utilise le champ erreur ou le statut si le corps HTTP est incomplet', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch');
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      json: async () => ({ erreur: 'Maintenance' }),
+    } as Response);
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      json: async () => { throw new Error('Corps absent'); },
+    } as Response);
+    const ressource = new RessourceApiDistante({
+      id: 'utilisateurs',
+      cheminListe: 'http://auth.test/api/users',
+      cheminCreation: 'http://auth.test/api/users',
+      cheminSuppression: (id) => `http://auth.test/api/users/${id}`,
+      champsFiltrables: [],
+      champs: [{ path: 'id', type: 'uuid', isId: true }],
+    });
+    const contexte = { currentAdmin: { jeton: 'jeton-admin' } };
+
+    await expect(ressource.find({}, {}, contexte)).rejects.toThrow('Maintenance');
+    await expect(ressource.find({}, {}, contexte)).rejects.toThrow('Le service distant a retourne 502.');
+  });
+
+  it('propage les erreurs reseau de creation sans les convertir en validation', async () => {
+    jest.spyOn(global, 'fetch').mockRejectedValue(new TypeError('fetch failed'));
+    const ressource = new RessourceApiDistante({
+      id: 'utilisateurs',
+      cheminListe: 'http://auth.test/api/users',
+      cheminCreation: 'http://auth.test/api/users',
+      cheminSuppression: (id) => `http://auth.test/api/users/${id}`,
+      champsFiltrables: [],
+      champs: [{ path: 'id', type: 'uuid', isId: true }],
+    });
+
+    await expect(ressource.create(
+      { pseudo: 'eva' },
+      { currentAdmin: { jeton: 'jeton-admin' } },
+    )).rejects.toBeInstanceOf(TypeError);
+  });
+
+  it('propage le 401 de creation comme une session expiree', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ message: 'Unauthorized' }),
+    } as Response);
+    const ressource = new RessourceApiDistante({
+      id: 'utilisateurs',
+      cheminListe: 'http://auth.test/api/users',
+      cheminCreation: 'http://auth.test/api/users',
+      cheminSuppression: (id) => `http://auth.test/api/users/${id}`,
+      champsFiltrables: [],
+      champs: [{ path: 'id', type: 'uuid', isId: true }],
+    });
+
+    await expect(ressource.create(
+      { pseudo: 'eva' },
+      { currentAdmin: { jeton: 'jeton-expire' } },
+    )).rejects.toThrow('La session administrateur a expire. Reconnectez-vous.');
+  });
+
+  it('invalide le cache de lecture apres une creation', async () => {
+    let appelsListe = 0;
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (_input, initialisation) => {
+      if (initialisation?.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ id: 'utilisateur-2' }) } as Response;
+      }
+      appelsListe += 1;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => (appelsListe === 1 ? [{ id: 'utilisateur-1' }] : [
+          { id: 'utilisateur-1' }, { id: 'utilisateur-2' },
+        ]),
+      } as Response;
+    });
+    const ressource = new RessourceApiDistante({
+      id: 'utilisateurs',
+      cheminListe: 'http://auth.test/api/users',
+      cheminCreation: 'http://auth.test/api/users',
+      cheminSuppression: (id) => `http://auth.test/api/users/${id}`,
+      champsFiltrables: [],
+      champs: [{ path: 'id', type: 'uuid', isId: true }],
+    });
+    const contexte = { currentAdmin: { jeton: 'jeton-admin' } };
+
+    await expect(ressource.count({}, contexte)).resolves.toBe(1);
+    await ressource.create({ pseudo: 'Alex' }, contexte);
+    await expect(ressource.count({}, contexte)).resolves.toBe(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('identifie une session administrateur expiree sur une reponse 401', async () => {
@@ -315,7 +438,7 @@ describe('RessourceApiDistante', () => {
     await expect(ressource.create(
       { recipientId: 'utilisateur-1', content: 'Bonjour' },
       { currentAdmin: { jeton: 'jeton-admin' } },
-    )).rejects.toMatchObject({ statusCode: 400 });
+    )).rejects.toThrow('Le service n a pas retourne l identifiant de l element cree.');
   });
 
   it('refuse une creation non confirmee par la lecture suivante', async () => {
@@ -343,10 +466,7 @@ describe('RessourceApiDistante', () => {
     await expect(ressource.create(
       { recipientId: 'utilisateur-1', content: 'Bonjour' },
       { currentAdmin: { jeton: 'jeton-admin' } },
-    )).rejects.toMatchObject({
-      statusCode: 400,
-      baseError: { message: 'Le message n a pas ete confirme par le service.' },
-    });
+    )).rejects.toThrow('Le message n a pas ete confirme par le service.');
   });
 
   it('normalise les roles historiques pour le filtre', async () => {
@@ -542,9 +662,14 @@ describe('RessourceApiDistante', () => {
 
     await expect(ressource.find({ filters: { pseudo: { value: 12 } } }, {}, contexte))
       .resolves.toHaveLength(2);
-    await expect(ressource.find({ filters: { id: { value: 'utilisateur-2' } } }, {}, contexte))
+    await expect(ressource.find(
+      { filters: { id: { value: 'utilisateur-2' } } },
+      {},
+      { currentAdmin: { jeton: 'autre-jeton-admin' } },
+    ))
       .resolves.toHaveLength(1);
-    await expect(ressource.create({ pseudo: 'Eva' }, contexte)).rejects.toMatchObject({ statusCode: 400 });
+    await expect(ressource.create({ pseudo: 'Eva' }, contexte))
+      .rejects.toThrow('Le service distant a retourne 502.');
   });
 
   it('gere les valeurs nulles, le tri descendant et les erreurs non standard', async () => {
@@ -570,6 +695,7 @@ describe('RessourceApiDistante', () => {
       .resolves.toHaveLength(0);
     await expect(ressource.find({}, { sort: { sortBy: 'pseudo', direction: 'desc' } }, contexte))
       .resolves.toHaveLength(2);
-    await expect(ressource.create({ pseudo: 'Eva' }, contexte)).rejects.toMatchObject({ statusCode: 400 });
+    await expect(ressource.create({ pseudo: 'Eva' }, contexte))
+      .rejects.toThrow('Le service n a pas retourne l identifiant de l element cree.');
   });
 });

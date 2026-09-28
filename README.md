@@ -41,6 +41,21 @@ salons et les 100 messages les plus récents. Les opérations sont relayées aux
 services propriétaires; le dashboard ne contient ni base de données ni données
 simulées.
 
+AdminJS est monté avec `@adminjs/express` sur l adaptateur Express de Nest, car
+ses ressources personnalisées relaient les requêtes vers les microservices.
+AdminJS authentifie ses routes par le service Authentification; les guards,
+interceptors et filtres propres aux contrôleurs Nest ne s appliquent pas à ces
+routes. L application n utilise pas de guards globaux. Toute future politique
+globale doit couvrir explicitement les routes AdminJS.
+
+`RessourceApiDistante` implémente l interface `BaseResource` d AdminJS; ses
+méthodes `databaseName()` et `update()` sont requises par cette interface, même
+si le dashboard ne possède pas de base locale et délègue les écritures.
+
+`allowScripts` dans `package.json` autorise le script d installation d esbuild,
+dont le binaire natif est requis par le bundler AdminJS. Le Dockerfile autorise
+également explicitement les scripts npm durant les installations.
+
 | Action | Service et routes utilisees |
 | --- | --- |
 | Connexion | Authentification: `POST /api/auth/login` |
@@ -53,6 +68,11 @@ simulées.
 ### Limites connues
 
 Le dashboard charge les messages de chaque salon séparément. La suppression d un message charge aussi les enregistrements pour retrouver son salon. Les API actuelles n offrent pas de lecture groupée ni de recherche directe commune par identifiant; réduire ces chargements demande une évolution compatible de Message-Service.
+
+Les listes réutilisent leurs résultats pendant une seconde afin d éviter de
+refaire le même chargement pour `count` puis `find`. La confirmation de création
+et la suppression d un message recherchent encore dans les enregistrements
+chargés; une API propriétaire de lecture par identifiant éviterait ce parcours.
 
 ## Configuration
 

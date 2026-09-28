@@ -32,8 +32,26 @@ type FiltreAdminJS = {
   filters?: Record<string, { value?: unknown }>;
 };
 
+const dureeCacheLectureMs = 1000;
+
+type ErreurApiDistante = Error & { statut: number };
+
+const estErreurApiDistante = (erreur: unknown): erreur is ErreurApiDistante => (
+  erreur instanceof Error && 'statut' in erreur && typeof erreur.statut === 'number'
+);
+
+const creerErreurApiDistante = (message: string, statut: number): ErreurApiDistante => (
+  Object.assign(new Error(message), { statut })
+);
+
 export class RessourceApiDistante extends BaseResource {
   private readonly proprietes: BaseProperty[];
+
+  private cacheEnregistrements?: {
+    jeton?: string;
+    expireLe: number;
+    promesse: Promise<Record<string, unknown>[]>;
+  };
 
   constructor(private readonly configuration: ConfigurationRessourceDistante) {
     super();
@@ -95,30 +113,29 @@ export class RessourceApiDistante extends BaseResource {
   }
 
   async create(parametres: Record<string, unknown>, contexte?: unknown): Promise<Record<string, unknown>> {
+    this.configuration.validerCreation?.(parametres);
+    const cheminCreation = typeof this.configuration.cheminCreation === 'function'
+      ? this.configuration.cheminCreation(parametres)
+      : this.configuration.cheminCreation;
+    const corps = JSON.stringify(this.configuration.transformerCreation?.(parametres) ?? parametres);
+    let enregistrement: Record<string, unknown>;
+
     try {
-      this.configuration.validerCreation?.(parametres);
-      const cheminCreation = typeof this.configuration.cheminCreation === 'function'
-        ? this.configuration.cheminCreation(parametres)
-        : this.configuration.cheminCreation;
-      const enregistrement = await RessourceApiDistante.requete<Record<string, unknown>>(
+      enregistrement = await RessourceApiDistante.requete<Record<string, unknown>>(
         cheminCreation,
         contexte,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(this.configuration.transformerCreation?.(parametres) ?? parametres),
+          body: corps,
         },
       );
-
-      if (!enregistrement.id) throw new Error('Le service n a pas retourne l identifiant de l element cree.');
-      if (this.configuration.verifierCreation) {
-        const enregistrements = await this.chargerEnregistrements(contexte);
-        const estCree = enregistrements.some((element) => String(element.id) === String(enregistrement.id));
-        if (!estCree) throw new Error('Le message n a pas ete confirme par le service.');
-      }
-      return this.transformerLecture(enregistrement);
     } catch (erreur) {
-      const message = erreur instanceof Error ? erreur.message : 'La creation a echoue.';
+      if (!estErreurApiDistante(erreur) || (erreur.statut !== 400 && erreur.statut !== 422)) {
+        throw erreur;
+      }
+
+      const { message } = erreur;
       const correspondance = message.match(/^([\w]+):\s*(.+)$/);
       const correspondanceChamp = correspondance && this.property(correspondance[1])
         ? correspondance
@@ -129,6 +146,15 @@ export class RessourceApiDistante extends BaseResource {
 
       throw new ValidationError(erreursParChamp, correspondanceChamp ? undefined : { message });
     }
+
+    this.invaliderCache();
+    if (!enregistrement.id) throw new Error('Le service n a pas retourne l identifiant de l element cree.');
+    if (this.configuration.verifierCreation) {
+      const enregistrements = await this.chargerEnregistrements(contexte);
+      const estCree = enregistrements.some((element) => String(element.id) === String(enregistrement.id));
+      if (!estCree) throw new Error('Le message n a pas ete confirme par le service.');
+    }
+    return this.transformerLecture(enregistrement);
   }
 
   // AdminJS requires this instance override even though it has no state.
@@ -151,20 +177,45 @@ export class RessourceApiDistante extends BaseResource {
       contexte,
       { method: 'DELETE' },
     );
+    this.invaliderCache();
   }
 
   private async chargerEnregistrements(contexte?: unknown): Promise<Record<string, unknown>[]> {
-    if (this.configuration.chargerEnregistrements) {
-      const requete = <T>(chemin: string) => RessourceApiDistante.requete<T>(chemin, contexte);
-      const enregistrements: Record<string, unknown>[] = await this.configuration.chargerEnregistrements(requete);
-      return enregistrements.map((enregistrement) => this.transformerLecture(enregistrement));
-    }
+    const jeton = (contexte as { currentAdmin?: { jeton?: string } } | undefined)
+      ?.currentAdmin?.jeton;
+    const cache = this.cacheEnregistrements;
+    if (cache && cache.jeton === jeton && cache.expireLe > Date.now()) return cache.promesse;
 
-    const enregistrements = await RessourceApiDistante.requete<Record<string, unknown>[]>(
-      this.configuration.cheminListe,
-      contexte,
-    );
-    return enregistrements.map((enregistrement) => this.transformerLecture(enregistrement));
+    const promesse = (async () => {
+      let enregistrements: Record<string, unknown>[];
+      if (this.configuration.chargerEnregistrements) {
+        const requete = <T>(chemin: string) => RessourceApiDistante.requete<T>(chemin, contexte);
+        enregistrements = await this.configuration.chargerEnregistrements(requete);
+      } else {
+        enregistrements = await RessourceApiDistante.requete<Record<string, unknown>[]>(
+          this.configuration.cheminListe,
+          contexte,
+        );
+      }
+      return enregistrements.map((enregistrement) => this.transformerLecture(enregistrement));
+    })();
+    const cacheNouveau = { jeton, expireLe: Number.POSITIVE_INFINITY, promesse };
+    this.cacheEnregistrements = cacheNouveau;
+
+    try {
+      const enregistrements = await promesse;
+      if (this.cacheEnregistrements === cacheNouveau) {
+        cacheNouveau.expireLe = Date.now() + dureeCacheLectureMs;
+      }
+      return enregistrements;
+    } catch (erreur) {
+      if (this.cacheEnregistrements === cacheNouveau) this.cacheEnregistrements = undefined;
+      throw erreur;
+    }
+  }
+
+  private invaliderCache(): void {
+    this.cacheEnregistrements = undefined;
   }
 
   private static async requete<T>(
@@ -188,7 +239,7 @@ export class RessourceApiDistante extends BaseResource {
     });
 
     if (reponse.status === 401) {
-      throw new Error('La session administrateur a expire. Reconnectez-vous.');
+      throw creerErreurApiDistante('La session administrateur a expire. Reconnectez-vous.', reponse.status);
     }
 
     if (reponse.ok) {
@@ -197,7 +248,10 @@ export class RessourceApiDistante extends BaseResource {
     }
 
     const corps = await reponse.json().catch(() => ({})) as { message?: string; erreur?: string };
-    throw new Error(corps.message ?? corps.erreur ?? `Le service distant a retourne ${reponse.status}.`);
+    throw creerErreurApiDistante(
+      corps.message ?? corps.erreur ?? `Le service distant a retourne ${reponse.status}.`,
+      reponse.status,
+    );
   }
 
   private static trier(

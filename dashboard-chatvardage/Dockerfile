@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:20-alpine AS builder
 
 # Install build tools needed for native node-gyp / AdminJS compilation
 RUN apk add --no-cache python3 make g++
@@ -22,6 +22,24 @@ ENV NODE_ENV=production
 
 # Build the NestJS application (compiles TS and triggers AdminJS bundler if configured)
 RUN npm run build
+
+# Generate AdminJS user components before dev dependencies are removed.
+RUN node --input-type=module -e "import AdminJS from 'adminjs'; import options from './dist/admin/options.js'; await new AdminJS(options).initialize();"
+
+FROM node:20-alpine AS runtime
+
+WORKDIR /app
+
+ENV NODE_ENV=production \
+	ADMIN_JS_SKIP_BUNDLE=true \
+	NPM_CONFIG_IGNORE_SCRIPTS=false
+
+COPY package*.json ./
+
+RUN npm ci --omit=dev
+
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/.adminjs ./.adminjs
 
 EXPOSE 3000
 

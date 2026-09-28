@@ -245,7 +245,7 @@ describe('Options AdminJS', () => {
     await expect(messages.find({}, {}, { currentAdmin: { jeton: 'jeton-admin' } }))
       .resolves.toHaveLength(1);
     rejeterSansErreur = true;
-    await expect(messages.find({}, {}, { currentAdmin: { jeton: 'jeton-admin' } }))
+    await expect(messages.find({}, {}, { currentAdmin: { jeton: 'autre-jeton-admin' } }))
       .resolves.toHaveLength(1);
     expect(journaliser).toHaveBeenCalledWith(
       expect.stringContaining('Impossible de charger les messages du salon salon-1'),
