@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import { Logger } from '@nestjs/common';
 
 import { composantDestinationMessage } from './component-loader.js';
 import options, { optionsRessource } from './options.js';
@@ -200,7 +201,9 @@ describe('Options AdminJS', () => {
     );
   });
 
-  it('conserve les messages disponibles lorsqu un salon ne peut pas etre charge', async () => {
+  it('conserve les messages disponibles pour les erreurs standard et non standard', async () => {
+    const journaliser = jest.spyOn(Logger, 'warn').mockImplementation(() => undefined);
+    let rejeterSansErreur = false;
     jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
       const chemin = String(input);
       if (chemin.endsWith('/api/messages/admin')) {
@@ -226,6 +229,10 @@ describe('Options AdminJS', () => {
           }),
         } as Response;
       }
+      if (rejeterSansErreur) {
+        // eslint-disable-next-line prefer-promise-reject-errors
+        return Promise.reject('Erreur reseau non standard');
+      }
       return {
         ok: false,
         status: 500,
@@ -237,6 +244,17 @@ describe('Options AdminJS', () => {
 
     await expect(messages.find({}, {}, { currentAdmin: { jeton: 'jeton-admin' } }))
       .resolves.toHaveLength(1);
+    rejeterSansErreur = true;
+    await expect(messages.find({}, {}, { currentAdmin: { jeton: 'jeton-admin' } }))
+      .resolves.toHaveLength(1);
+    expect(journaliser).toHaveBeenCalledWith(
+      expect.stringContaining('Impossible de charger les messages du salon salon-1'),
+      'DashboardAdmin',
+    );
+    expect(journaliser).toHaveBeenCalledWith(
+      expect.stringContaining('Erreur reseau non standard'),
+      'DashboardAdmin',
+    );
   });
 
   it('charge toutes les pages de serveurs et transforme leurs proprietes', async () => {

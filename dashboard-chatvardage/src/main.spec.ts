@@ -2,11 +2,9 @@ import { jest } from '@jest/globals';
 import { NestFactory } from '@nestjs/core';
 
 const construireRouteur = jest.fn();
-const lireFichier = jest.fn();
 jest.unstable_mockModule('@adminjs/express', () => ({
   default: { buildAuthenticatedRouter: construireRouteur },
 }));
-jest.unstable_mockModule('node:fs/promises', () => ({ readFile: lireFichier }));
 
 const { authentifierAdministrateur, démarrerApplication } = await import('./main.js');
 
@@ -14,7 +12,6 @@ describe('Point d entree de l application', () => {
   afterEach(() => {
     jest.restoreAllMocks();
     construireRouteur.mockClear();
-    lireFichier.mockReset();
   });
 
   it('authentifie un administrateur avec les informations du service', async () => {
@@ -63,8 +60,12 @@ describe('Point d entree de l application', () => {
     const ecouter = jest.fn().mockResolvedValue(undefined);
     const portInitial = process.env.PORT;
     const secretInitial = process.env.COOKIE_SECRET;
+    const secretSessionInitial = process.env.SESSION_SECRET;
+    const environnementInitial = process.env.NODE_ENV;
     delete process.env.PORT;
-    delete process.env.COOKIE_SECRET;
+    process.env.NODE_ENV = 'production';
+    process.env.COOKIE_SECRET = 'secret-cookie-de-test-de-plus-de-32-caracteres';
+    process.env.SESSION_SECRET = 'secret-session-de-test-de-plus-de-32-caracteres';
     jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -87,16 +88,23 @@ describe('Point d entree de l application', () => {
       else process.env.PORT = portInitial;
       if (secretInitial === undefined) delete process.env.COOKIE_SECRET;
       else process.env.COOKIE_SECRET = secretInitial;
+      if (secretSessionInitial === undefined) delete process.env.SESSION_SECRET;
+      else process.env.SESSION_SECRET = secretSessionInitial;
+      if (environnementInitial === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = environnementInitial;
     }
 
     expect(construireRouteur).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ cookieName: 'chatvardage-admin' }),
-      expect.anything(),
+      expect.objectContaining({
+        cookieName: 'chatvardage-admin',
+        cookiePassword: 'secret-cookie-de-test-de-plus-de-32-caracteres',
+      }),
+      undefined,
       expect.objectContaining({
         resave: false,
         saveUninitialized: false,
-        secret: 'dashboard_cookie_secret_for_local_development',
+        secret: 'secret-session-de-test-de-plus-de-32-caracteres',
       }),
     );
     expect(utiliser).toHaveBeenCalledWith('/administration', 'routeur-admin');
@@ -109,40 +117,37 @@ describe('Point d entree de l application', () => {
     await expect(authentifier('eva@example.test', 'mot-de-passe')).resolves.toMatchObject({
       id: 'admin-1',
     });
+
+    const secretCookieDuplique = 'secret-cookie-de-test-de-plus-de-32-caracteres';
+    process.env.COOKIE_SECRET = secretCookieDuplique;
+    process.env.SESSION_SECRET = secretCookieDuplique;
+    try {
+      await démarrerApplication();
+      const optionsSession = construireRouteur.mock.calls[1][3] as { secret: string };
+      expect(optionsSession.secret).not.toBe(secretCookieDuplique);
+    } finally {
+      if (secretInitial === undefined) delete process.env.COOKIE_SECRET;
+      else process.env.COOKIE_SECRET = secretInitial;
+      if (secretSessionInitial === undefined) delete process.env.SESSION_SECRET;
+      else process.env.SESSION_SECRET = secretSessionInitial;
+    }
   });
 
-  it('sert le bundle des composants et transmet les erreurs de lecture', async () => {
-    const utiliser = jest.fn();
-    const ecouter = jest.fn().mockResolvedValue(undefined);
-    const reponse = { type: jest.fn().mockReturnThis(), send: jest.fn() };
-    const suivant = jest.fn();
-    construireRouteur.mockReturnValue('routeur-admin');
-    jest.spyOn(NestFactory, 'create').mockResolvedValue({
-      getHttpAdapter: () => ({ getInstance: () => ({ use: utiliser }) }),
-      listen: ecouter,
-    } as never);
+  it('refuse le secret de developpement en production avant de creer le serveur', async () => {
+    const secretInitial = process.env.COOKIE_SECRET;
+    const environnementInitial = process.env.NODE_ENV;
+    delete process.env.COOKIE_SECRET;
+    process.env.NODE_ENV = 'production';
+    const creerApplication = jest.spyOn(NestFactory, 'create');
 
-    await démarrerApplication();
-    const routeurHttp = construireRouteur.mock.calls[0][2] as unknown as {
-      stack: Array<{
-        route?: {
-          path: string;
-          stack: Array<{ handle: (requete: unknown, reponse: unknown, suivant: unknown) => unknown }>;
-        };
-      }>;
-    };
-    const handler = routeurHttp.stack.find(
-      (couche) => couche.route?.path === '/frontend/assets/components.bundle.js',
-    )?.route?.stack[0].handle;
-
-    lireFichier.mockResolvedValue('bundle');
-    await handler?.({}, reponse, suivant);
-    expect(reponse.type).toHaveBeenCalledWith('application/javascript');
-    expect(reponse.send).toHaveBeenCalledWith('bundle');
-
-    const erreur = new Error('Bundle introuvable');
-    lireFichier.mockRejectedValue(erreur);
-    await handler?.({}, reponse, suivant);
-    expect(suivant).toHaveBeenCalledWith(erreur);
+    try {
+      await expect(démarrerApplication()).rejects.toThrow('COOKIE_SECRET doit contenir');
+      expect(creerApplication).not.toHaveBeenCalled();
+    } finally {
+      if (secretInitial === undefined) delete process.env.COOKIE_SECRET;
+      else process.env.COOKIE_SECRET = secretInitial;
+      if (environnementInitial === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = environnementInitial;
+    }
   });
 });

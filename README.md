@@ -7,21 +7,25 @@ Base backend NestJS du tableau de bord de ChatVardage. Le projet fournit une API
 1. Installer les dépendances :
 
 ```bash
-npm install
+npm --prefix dashboard-chatvardage install
 ```
 
 2. Créer un fichier `.env` dans `dashboard-chatvardage` :
 
 ```env
-COOKIE_SECRET=remplacer-par-un-secret-local
+COOKIE_SECRET=remplacer-par-un-secret-aleatoire-de-32-caracteres-minimum
+SESSION_SECRET=
 PORT=3000
 ```
+
+En production, `COOKIE_SECRET` doit etre un secret aleatoire d au moins 32 caracteres.
+`SESSION_SECRET` est facultatif; s il est absent, une cle distincte est derivee de
+`COOKIE_SECRET`.
 
 3. Démarrer le serveur :
 
 ```bash
-cd dashboard-chatvardage
-npm run start:dev
+npm --prefix dashboard-chatvardage run start:dev
 ```
 
 Le serveur est disponible sur `http://localhost:3000`.
@@ -37,11 +41,14 @@ salons et les 100 messages les plus récents. Les opérations sont relayées aux
 services propriétaires; le dashboard ne contient ni base de données ni données
 simulées.
 
-| Action | Service et route utilisee |
+| Action | Service et routes utilisees |
 | --- | --- |
-| Connexion et utilisateurs | Authentification: `/api/auth/login`, `POST /api/users`, `/api/users` |
-| Salons | Room-Service: `/api/admin/rooms`, `POST /api/rooms`, `/api/rooms/:id` |
-| Messages | Message-Service: `/api/messages/admin`, `POST /api/messages`, `/api/messages/admin/:id` |
+| Connexion | Authentification: `POST /api/auth/login` |
+| Utilisateurs | Authentification: `GET/POST /api/users`, `DELETE /api/users/:id` |
+| Serveurs | Room-Service: `GET /api/admin/servers`, `GET /api/servers/:id`, `POST /api/servers`, `DELETE /api/servers/:id` |
+| Salons | Room-Service: `POST /api/servers/:id/channels`, `DELETE /api/channels/:id` |
+| Messages prives | Message-Service: `GET/POST /api/messages/admin`, `DELETE /api/messages/admin/:id` |
+| Messages de salon | Message-Service: `GET /api/messages/rooms/:channelId/history?limit=100`, `POST /api/messages/rooms/:channelId/admin`, `DELETE /api/messages/rooms/:channelId/:id` |
 
 ## Configuration
 
@@ -60,10 +67,13 @@ reseau Docker.
 
 ## Vérifications
 
-Depuis `dashboard-chatvardage` :
+Depuis la racine du dépôt :
 
 ```bash
-npm run build
-npm test -- --runInBand
-npx eslint "src/**/*.ts"
+npm --prefix dashboard-chatvardage run build
+npm --prefix dashboard-chatvardage test -- --runInBand
+npm --prefix dashboard-chatvardage run test:cov -- --runInBand
+npm --prefix dashboard-chatvardage exec -- eslint "dashboard-chatvardage/src/**/*.ts"
 ```
+
+Le rapport HTML est genere dans `dashboard-chatvardage/coverage/lcov-report/index.html`.

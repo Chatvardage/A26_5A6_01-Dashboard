@@ -120,11 +120,14 @@ export class RessourceApiDistante extends BaseResource {
     } catch (erreur) {
       const message = erreur instanceof Error ? erreur.message : 'La creation a echoue.';
       const correspondance = message.match(/^([\w]+):\s*(.+)$/);
-      const erreursParChamp = correspondance
-        ? { [correspondance[1]]: { message: correspondance[2] } }
+      const correspondanceChamp = correspondance && this.property(correspondance[1])
+        ? correspondance
+        : undefined;
+      const erreursParChamp = correspondanceChamp
+        ? { [correspondanceChamp[1]]: { message: correspondanceChamp[2] } }
         : {};
 
-      throw new ValidationError(erreursParChamp, correspondance ? undefined : { message });
+      throw new ValidationError(erreursParChamp, correspondanceChamp ? undefined : { message });
     }
   }
 
@@ -181,6 +184,10 @@ export class RessourceApiDistante extends BaseResource {
         Authorization: `Bearer ${jeton}`,
       },
     });
+
+    if (reponse.status === 401) {
+      throw new Error('La session administrateur a expire. Reconnectez-vous.');
+    }
 
     if (reponse.ok) {
       if (reponse.status === 204) return undefined as T;

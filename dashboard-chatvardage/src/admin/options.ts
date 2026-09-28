@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import type { AdminJSOptions } from 'adminjs';
 
 import chargeurComposants, { composantDestinationMessage } from './component-loader.js';
@@ -20,13 +21,18 @@ type PageServeurs = {
 const chargerPageServeurs = async (
   requete: <T>(chemin: string) => Promise<T>,
   chemin: string,
-  decalage = 0,
 ): Promise<Record<string, unknown>[]> => {
-  const page = await requete<PageServeurs>(`${chemin}?decalage=${decalage}&limite=100`);
-  if (page.suivant == null) return page.serveurs;
+  const serveurs: Record<string, unknown>[] = [];
+  let decalage: number | null = 0;
 
-  const autresServeurs = await chargerPageServeurs(requete, chemin, page.suivant);
-  return [...page.serveurs, ...autresServeurs];
+  while (decalage !== null) {
+    // eslint-disable-next-line no-await-in-loop
+    const page = await requete<PageServeurs>(`${chemin}?decalage=${decalage}&limite=100`);
+    serveurs.push(...page.serveurs);
+    decalage = page.suivant;
+  }
+
+  return serveurs;
 };
 
 const chargerTousLesServeurs = (chemin: string): ChargeurEnregistrements => {
@@ -67,8 +73,8 @@ const chargerTousLesMessages = (
     chargerTousLesSalons(cheminListeServeurs, cheminServeurs)(requete),
   ]);
   const messagesDeSalon = await Promise.all(salons.map(async (salon) => {
+    const channelId = String(salon.id);
     try {
-      const channelId = String(salon.id);
       const messages = await requete<Record<string, unknown>[]>(cheminMessagesDeSalon(channelId));
       return messages.map((message) => ({
         ...message,
@@ -78,7 +84,9 @@ const chargerTousLesMessages = (
         serverId: salon.serverId,
         serverName: salon.serverName,
       }));
-    } catch {
+    } catch (erreur) {
+      const detail = erreur instanceof Error ? erreur.message : String(erreur);
+      Logger.warn(`Impossible de charger les messages du salon ${channelId}: ${detail}`, 'DashboardAdmin');
       return [];
     }
   }));

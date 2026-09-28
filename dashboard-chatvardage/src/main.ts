@@ -1,15 +1,11 @@
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { createHmac } from 'node:crypto';
 
 import AdminJS from 'adminjs';
 import AdminJSExpress from '@adminjs/express';
 import { NestFactory } from '@nestjs/core';
-import express from 'express';
 
 import options from './admin/options.js';
 import { ModuleApplication } from './app.module.js';
-
-const cheminBundleComposants = fileURLToPath(new URL('../.adminjs/bundle.js', import.meta.url));
 
 export async function authentifierAdministrateur(courriel: string, motDePasse: string) {
   try {
@@ -41,33 +37,33 @@ export async function authentifierAdministrateur(courriel: string, motDePasse: s
 }
 
 export async function démarrerApplication() {
+  const secretCookie = process.env.COOKIE_SECRET ?? 'dashboard_cookie_secret_for_local_development';
+  if (process.env.NODE_ENV === 'production'
+    && (!process.env.COOKIE_SECRET || secretCookie.length < 32
+      || secretCookie === 'dashboard_cookie_secret_for_local_development')) {
+    throw new Error('COOKIE_SECRET doit contenir au moins 32 caracteres uniques en production.');
+  }
+  const secretSessionConfigure = process.env.SESSION_SECRET;
+  const secretSession = secretSessionConfigure && secretSessionConfigure !== secretCookie
+    ? secretSessionConfigure
+    : createHmac('sha256', secretCookie).update('chatvardage-admin-session').digest('hex');
   const application = await NestFactory.create(ModuleApplication);
   const administration = new AdminJS(options);
-  const secretSession = process.env.COOKIE_SECRET ?? 'dashboard_cookie_secret_for_local_development';
-  const routeurHttp = express.Router();
-  routeurHttp.get('/frontend/assets/components.bundle.js', async (_requete, reponse, suivant) => {
-    try {
-      reponse.type('application/javascript').send(await readFile(cheminBundleComposants, 'utf8'));
-    } catch (erreur) {
-      suivant(erreur);
-    }
-  });
-  const routeur = (AdminJSExpress as unknown as {
-    buildAuthenticatedRouter: typeof import('@adminjs/express').default.buildAuthenticatedRouter;
-  }).buildAuthenticatedRouter(
-    administration,
-    {
-      authenticate: async (courriel, motDePasse) => authentifierAdministrateur(courriel, motDePasse),
-      cookieName: 'chatvardage-admin',
-      cookiePassword: secretSession,
-    },
-    routeurHttp,
-    {
-      resave: false,
-      saveUninitialized: false,
-      secret: secretSession,
-    },
-  );
+  const routeur = (AdminJSExpress as unknown as typeof import('@adminjs/express').default)
+    .buildAuthenticatedRouter(
+      administration,
+      {
+        authenticate: async (courriel, motDePasse) => authentifierAdministrateur(courriel, motDePasse),
+        cookieName: 'chatvardage-admin',
+        cookiePassword: secretCookie,
+      },
+      undefined,
+      {
+        resave: false,
+        saveUninitialized: false,
+        secret: secretSession,
+      },
+    );
 
   application.getHttpAdapter().getInstance().use(administration.options.rootPath, routeur);
   await application.listen(process.env.PORT ?? 3000);

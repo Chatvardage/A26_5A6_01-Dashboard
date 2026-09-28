@@ -75,7 +75,10 @@ describe('RessourceApiDistante', () => {
       cheminCreation: 'http://auth.test/api/users',
       cheminSuppression: (id) => `http://auth.test/api/users/${id}`,
       champsFiltrables: ['id', 'pseudo', 'courriel', 'role'],
-      champs: [{ path: 'id', type: 'uuid', isId: true }],
+      champs: [
+        { path: 'id', type: 'uuid', isId: true },
+        { path: 'mot_de_passe', type: 'password' },
+      ],
     });
 
     await expect(ressource.create(
@@ -87,6 +90,48 @@ describe('RessourceApiDistante', () => {
         mot_de_passe: { message: 'le mot de passe doit contenir entre 8 et 128 caracteres' },
       },
     });
+  });
+
+  it('garde les messages avec deux-points dans les erreurs generales', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ message: 'Service indisponible depuis 12:30' }),
+    } as Response);
+    const ressource = new RessourceApiDistante({
+      id: 'utilisateurs',
+      cheminListe: 'http://auth.test/api/users',
+      cheminCreation: 'http://auth.test/api/users',
+      cheminSuppression: (id) => `http://auth.test/api/users/${id}`,
+      champsFiltrables: [],
+      champs: [{ path: 'id', type: 'uuid', isId: true }],
+    });
+
+    await expect(ressource.create(
+      { pseudo: 'eva' },
+      { currentAdmin: { jeton: 'jeton-admin' } },
+    )).rejects.toMatchObject({
+      baseError: { message: 'Service indisponible depuis 12:30' },
+    });
+  });
+
+  it('identifie une session administrateur expiree sur une reponse 401', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ message: 'Unauthorized' }),
+    } as Response);
+    const ressource = new RessourceApiDistante({
+      id: 'utilisateurs',
+      cheminListe: 'http://auth.test/api/users',
+      cheminCreation: 'http://auth.test/api/users',
+      cheminSuppression: (id) => `http://auth.test/api/users/${id}`,
+      champsFiltrables: [],
+      champs: [{ path: 'id', type: 'uuid', isId: true }],
+    });
+
+    await expect(ressource.find({}, {}, { currentAdmin: { jeton: 'jeton-expire' } }))
+      .rejects.toThrow('La session administrateur a expire. Reconnectez-vous.');
   });
 
   it('envoie l expediteur choisi a la route de creation administrateur', async () => {
@@ -390,6 +435,24 @@ describe('RessourceApiDistante', () => {
       headers: { Authorization: 'Bearer jeton-admin' },
     });
     await expect(ressource.update()).rejects.toThrow('La modification est geree par le service proprietaire.');
+  });
+
+  it('refuse de supprimer un enregistrement dependant introuvable', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch');
+    const ressource = new RessourceApiDistante({
+      id: 'messages',
+      cheminListe: 'http://messages.test/api/messages/admin',
+      cheminCreation: 'http://messages.test/api/messages/admin',
+      cheminSuppression: (id) => `http://messages.test/api/messages/admin/${id}`,
+      suppressionDependanteEnregistrement: true,
+      champsFiltrables: [],
+      chargerEnregistrements: async () => [],
+      champs: [{ path: 'id', type: 'uuid', isId: true }],
+    });
+
+    await expect(ressource.delete('message-absent', { currentAdmin: { jeton: 'jeton-admin' } }))
+      .rejects.toThrow('Element introuvable pour la suppression.');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('refuse une session absente avant d appeler le service', async () => {
