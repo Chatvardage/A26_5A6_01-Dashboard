@@ -470,6 +470,23 @@ describe('RessourceApiDistante', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('refuse un jeton contenant des retours de ligne avant la requete HTTP', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch');
+    const ressource = new RessourceApiDistante({
+      id: 'utilisateurs',
+      cheminListe: 'http://auth.test/api/users',
+      cheminCreation: 'http://auth.test/api/users',
+      cheminSuppression: (id) => `http://auth.test/api/users/${id}`,
+      champsFiltrables: [],
+      champs: [{ path: 'id', type: 'uuid', isId: true }],
+    });
+
+    await expect(ressource.find({}, {}, {
+      currentAdmin: { jeton: 'header.payload.signature\r\nX-Injected: true' },
+    })).rejects.toThrow('Session administrateur invalide. Reconnectez-vous.');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('tronque l apercu des messages longs', async () => {
     jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,

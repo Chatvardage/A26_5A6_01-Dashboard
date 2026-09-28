@@ -1,4 +1,4 @@
-     # ChatVardage
+# ChatVardage
 
 Base backend NestJS du tableau de bord de ChatVardage. Le projet fournit une API française et une structure prête à recevoir le frontend Electron/React décrit dans [ReadmeFrontEnd.md](ReadmeFrontEnd.md) et [ArchitectureFrontEnd.md](ArchitectureFrontEnd.md).
 
@@ -49,6 +49,10 @@ simulées.
 | Salons | Room-Service: `POST /api/servers/:id/channels`, `DELETE /api/channels/:id` |
 | Messages prives | Message-Service: `GET/POST /api/messages/admin`, `DELETE /api/messages/admin/:id` |
 | Messages de salon | Message-Service: `GET /api/messages/rooms/:channelId/history?limit=100`, `POST /api/messages/rooms/:channelId/admin`, `DELETE /api/messages/rooms/:channelId/:id` |
+
+### Limites connues
+
+Le dashboard charge les messages de chaque salon séparément. La suppression d un message charge aussi les enregistrements pour retrouver son salon. Les API actuelles n offrent pas de lecture groupée ni de recherche directe commune par identifiant; réduire ces chargements demande une évolution compatible de Message-Service.
 
 ## Configuration
 

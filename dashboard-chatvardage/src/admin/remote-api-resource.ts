@@ -175,7 +175,9 @@ export class RessourceApiDistante extends BaseResource {
     const jeton = (contexte as { currentAdmin?: { jeton?: string } } | undefined)
       ?.currentAdmin?.jeton;
 
-    if (!jeton) throw new Error('Session administrateur invalide. Reconnectez-vous.');
+    if (typeof jeton !== 'string' || !/^[A-Za-z0-9._~+/-]+=*$/.test(jeton)) {
+      throw new Error('Session administrateur invalide. Reconnectez-vous.');
+    }
 
     const reponse = await fetch(chemin, {
       ...optionsRequete,

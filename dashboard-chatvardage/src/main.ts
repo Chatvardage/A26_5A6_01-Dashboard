@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 
 import AdminJS from 'adminjs';
 import AdminJSExpress from '@adminjs/express';
@@ -37,11 +37,16 @@ export async function authentifierAdministrateur(courriel: string, motDePasse: s
 }
 
 export async function démarrerApplication() {
-  const secretCookie = process.env.COOKIE_SECRET ?? 'dashboard_cookie_secret_for_local_development';
-  if (process.env.NODE_ENV === 'production'
-    && (!process.env.COOKIE_SECRET || secretCookie.length < 32
-      || secretCookie === 'dashboard_cookie_secret_for_local_development')) {
-    throw new Error('COOKIE_SECRET doit contenir au moins 32 caracteres uniques en production.');
+  const valeurSecreteLocale = 'dashboard_cookie_secret_for_local_development';
+  const secretCookieConfigure = process.env.COOKIE_SECRET;
+  const estDeveloppementLocal = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
+  const secretCookie = estDeveloppementLocal
+    && (!secretCookieConfigure || secretCookieConfigure === valeurSecreteLocale)
+    ? randomBytes(32).toString('hex')
+    : secretCookieConfigure ?? valeurSecreteLocale;
+  if (process.env.NODE_ENV !== 'test'
+    && (secretCookie.length < 32 || secretCookie === valeurSecreteLocale)) {
+    throw new Error('COOKIE_SECRET doit contenir au moins 32 caracteres aleatoires hors tests.');
   }
   const secretSessionConfigure = process.env.SESSION_SECRET;
   const secretSession = secretSessionConfigure && secretSessionConfigure !== secretCookie

@@ -150,4 +150,30 @@ describe('Point d entree de l application', () => {
       else process.env.NODE_ENV = environnementInitial;
     }
   });
+
+  it('genere une cle locale au lieu de reutiliser le secret public de developpement', async () => {
+    const secretInitial = process.env.COOKIE_SECRET;
+    const environnementInitial = process.env.NODE_ENV;
+    process.env.COOKIE_SECRET = 'dashboard_cookie_secret_for_local_development';
+    process.env.NODE_ENV = 'development';
+    construireRouteur.mockReturnValue('routeur-admin');
+    jest.spyOn(NestFactory, 'create').mockResolvedValue({
+      getHttpAdapter: () => ({ getInstance: () => ({ use: jest.fn() }) }),
+      listen: jest.fn().mockResolvedValue(undefined),
+    } as never);
+
+    try {
+      await démarrerApplication();
+    } finally {
+      if (secretInitial === undefined) delete process.env.COOKIE_SECRET;
+      else process.env.COOKIE_SECRET = secretInitial;
+      if (environnementInitial === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = environnementInitial;
+    }
+
+    const [, optionsAuthentification] = construireRouteur.mock.calls[0];
+    const motDePasseCookie = (optionsAuthentification as { cookiePassword: string }).cookiePassword;
+    expect(motDePasseCookie).not.toBe('dashboard_cookie_secret_for_local_development');
+    expect(motDePasseCookie).toHaveLength(64);
+  });
 });

@@ -389,6 +389,19 @@ describe('Options AdminJS', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('refuse de creer un salon sans serveur avant d appeler Room-Service', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch');
+    const ressources = options.resources ?? [];
+    const salons = ressources[2].resource as RessourceApiDistante;
+
+    await expect(salons.create({ name: 'general', access: 'tous', writing: 'tous' }, {
+      currentAdmin: { jeton: 'jeton-admin' },
+    })).rejects.toMatchObject({
+      propertyErrors: { serverId: { message: 'Le serveur est requis.' } },
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('configure une langue francaise avec une langue de repli', () => {
     expect(options.locale).toMatchObject({
       language: 'fr',

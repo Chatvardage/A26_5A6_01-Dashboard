@@ -26,6 +26,7 @@ const chargerPageServeurs = async (
   let decalage: number | null = 0;
 
   while (decalage !== null) {
+    // Le service fournit le decalage suivant avec chaque page; il est inconnu a l'avance.
     // eslint-disable-next-line no-await-in-loop
     const page = await requete<PageServeurs>(`${chemin}?decalage=${decalage}&limite=100`);
     serveurs.push(...page.serveurs);
@@ -306,10 +307,15 @@ const options: AdminJSOptions = {
       resource: new RessourceApiDistante({
         id: 'salons',
         cheminListe: cheminListeServeurs,
-        cheminCreation: ({ serverId }) => `${cheminServeurs}/${serverId}/channels`,
+        cheminCreation: ({ serverId }) => `${cheminServeurs}/${encodeURIComponent(String(serverId))}/channels`,
         cheminSuppression: (id) => urlDuService('ROOM_SERVICE_URL', 'http://localhost:3003', `/api/channels/${id}`),
         champsFiltrables: ['serverId', 'serverName', 'name', 'access', 'writing'],
         chargerEnregistrements: chargerTousLesSalons(cheminListeServeurs, cheminServeurs),
+        validerCreation: ({ serverId }) => {
+          if (typeof serverId !== 'string' || !serverId.trim()) {
+            throw new Error('serverId: Le serveur est requis.');
+          }
+        },
         transformerCreation: ({ name, access, writing }) => ({
           nom: name,
           acces: access,
