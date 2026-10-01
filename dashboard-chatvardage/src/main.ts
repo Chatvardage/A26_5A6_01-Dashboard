@@ -36,7 +36,7 @@ export async function authentifierAdministrateur(courriel: string, motDePasse: s
   }
 }
 
-export async function démarrerApplication() {
+export async function demarrerApplication() {
   const valeurSecreteLocale = 'dashboard_cookie_secret_for_local_development';
   const secretCookieConfigure = process.env.COOKIE_SECRET;
   const estDeveloppementLocal = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
@@ -75,4 +75,4 @@ export async function démarrerApplication() {
 }
 
 /* istanbul ignore next -- the production entry point would open a real server during Jest. */
-if (process.env.NODE_ENV !== 'test') démarrerApplication();
+if (process.env.NODE_ENV !== 'test') demarrerApplication();

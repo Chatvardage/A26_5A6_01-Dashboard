@@ -19,6 +19,7 @@ describe('RessourceApiDistante', () => {
       cheminCreation: 'http://messages.test/api/messages',
       cheminSuppression: (id) => `http://messages.test/api/messages/admin/${id}`,
       champsFiltrables: ['senderId', 'recipientId'],
+      transformerApercu: (message) => ({ ...message, apercu: String(message.content ?? '') }),
       champs: [{ path: 'id', type: 'uuid', isId: true }],
     });
 
@@ -299,6 +300,13 @@ describe('RessourceApiDistante', () => {
       cheminCreation: 'http://messages.test/api/messages/admin',
       cheminSuppression: (id) => `http://messages.test/api/messages/admin/${id}`,
       champsFiltrables: [],
+      transformerApercu: (message) => {
+        const contenuCompact = String(message.content ?? '').replace(/\s+/g, ' ').trim();
+        return {
+          ...message,
+          apercu: contenuCompact.length > 120 ? `${contenuCompact.slice(0, 120)}...` : contenuCompact,
+        };
+      },
       champs: [
         { path: 'id', type: 'uuid', isId: true },
         { path: 'content', type: 'textarea' },
@@ -432,6 +440,13 @@ describe('RessourceApiDistante', () => {
       cheminCreation: 'http://messages.test/api/messages',
       cheminSuppression: (id) => `http://messages.test/api/messages/admin/${id}`,
       champsFiltrables: [],
+      transformerApercu: (message) => {
+        const contenuCompact = String(message.content ?? '').replace(/\s+/g, ' ').trim();
+        return {
+          ...message,
+          apercu: contenuCompact.length > 120 ? `${contenuCompact.slice(0, 120)}...` : contenuCompact,
+        };
+      },
       champs: [{ path: 'id', type: 'uuid', isId: true }],
     });
 
@@ -607,6 +622,22 @@ describe('RessourceApiDistante', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('refuse une virgule dans le jeton Bearer', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch');
+    const ressource = new RessourceApiDistante({
+      id: 'utilisateurs',
+      cheminListe: 'http://auth.test/api/users',
+      cheminCreation: 'http://auth.test/api/users',
+      cheminSuppression: (id) => `http://auth.test/api/users/${id}`,
+      champsFiltrables: [],
+      champs: [{ path: 'id', type: 'uuid', isId: true }],
+    });
+
+    await expect(ressource.find({}, {}, { currentAdmin: { jeton: 'header,payload.signature' } }))
+      .rejects.toThrow('Session administrateur invalide. Reconnectez-vous.');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('tronque l apercu des messages longs', async () => {
     jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
@@ -619,6 +650,13 @@ describe('RessourceApiDistante', () => {
       cheminCreation: 'http://messages.test/api/messages/admin',
       cheminSuppression: (id) => `http://messages.test/api/messages/admin/${id}`,
       champsFiltrables: [],
+      transformerApercu: (message) => {
+        const contenuCompact = String(message.content ?? '').replace(/\s+/g, ' ').trim();
+        return {
+          ...message,
+          apercu: contenuCompact.length > 120 ? `${contenuCompact.slice(0, 120)}...` : contenuCompact,
+        };
+      },
       champs: [{ path: 'id', type: 'uuid', isId: true }],
     });
 

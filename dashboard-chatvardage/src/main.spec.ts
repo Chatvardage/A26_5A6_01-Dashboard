@@ -6,7 +6,7 @@ jest.unstable_mockModule('@adminjs/express', () => ({
   default: { buildAuthenticatedRouter: construireRouteur },
 }));
 
-const { authentifierAdministrateur, démarrerApplication } = await import('./main.js');
+const { authentifierAdministrateur, demarrerApplication } = await import('./main.js');
 
 describe('Point d entree de l application', () => {
   afterEach(() => {
@@ -82,7 +82,7 @@ describe('Point d entree de l application', () => {
     } as never);
 
     try {
-      await démarrerApplication();
+      await demarrerApplication();
     } finally {
       if (portInitial === undefined) delete process.env.PORT;
       else process.env.PORT = portInitial;
@@ -122,7 +122,7 @@ describe('Point d entree de l application', () => {
     process.env.COOKIE_SECRET = secretCookieDuplique;
     process.env.SESSION_SECRET = secretCookieDuplique;
     try {
-      await démarrerApplication();
+      await demarrerApplication();
       const optionsSession = construireRouteur.mock.calls[1][3] as { secret: string };
       expect(optionsSession.secret).not.toBe(secretCookieDuplique);
     } finally {
@@ -141,7 +141,7 @@ describe('Point d entree de l application', () => {
     const creerApplication = jest.spyOn(NestFactory, 'create');
 
     try {
-      await expect(démarrerApplication()).rejects.toThrow('COOKIE_SECRET doit contenir');
+      await expect(demarrerApplication()).rejects.toThrow('COOKIE_SECRET doit contenir');
       expect(creerApplication).not.toHaveBeenCalled();
     } finally {
       if (secretInitial === undefined) delete process.env.COOKIE_SECRET;
@@ -163,7 +163,7 @@ describe('Point d entree de l application', () => {
     } as never);
 
     try {
-      await démarrerApplication();
+      await demarrerApplication();
     } finally {
       if (secretInitial === undefined) delete process.env.COOKIE_SECRET;
       else process.env.COOKIE_SECRET = secretInitial;

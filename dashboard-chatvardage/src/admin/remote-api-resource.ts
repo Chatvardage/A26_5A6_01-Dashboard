@@ -25,6 +25,7 @@ type ConfigurationRessourceDistante = {
   validerCreation?: (parametres: Record<string, unknown>) => void;
   verifierCreation?: boolean;
   transformerLecture?: (enregistrement: Record<string, unknown>) => Record<string, unknown>;
+  transformerApercu?: (enregistrement: Record<string, unknown>) => Record<string, unknown>;
   chargerEnregistrements?: ChargeurEnregistrements;
 };
 
@@ -226,7 +227,7 @@ export class RessourceApiDistante extends BaseResource {
     const jeton = (contexte as { currentAdmin?: { jeton?: string } } | undefined)
       ?.currentAdmin?.jeton;
 
-    if (typeof jeton !== 'string' || !/^[A-Za-z0-9._~+/-]+=*$/.test(jeton)) {
+    if (typeof jeton !== 'string' || !/^[-A-Za-z0-9._~+/]+=*$/.test(jeton)) {
       throw new Error('Session administrateur invalide. Reconnectez-vous.');
     }
 
@@ -302,14 +303,6 @@ export class RessourceApiDistante extends BaseResource {
       ? { ...enregistrementTransforme, role: RessourceApiDistante.normaliserRole(enregistrementTransforme.role) }
       : enregistrementTransforme;
 
-    if (this.configuration.id !== 'messages' || typeof avecRoleNormalise.content !== 'string') {
-      return avecRoleNormalise;
-    }
-
-    const contenuCompact = avecRoleNormalise.content.replace(/\s+/g, ' ').trim();
-    return {
-      ...avecRoleNormalise,
-      apercu: contenuCompact.length > 120 ? `${contenuCompact.slice(0, 120)}...` : contenuCompact,
-    };
+    return this.configuration.transformerApercu?.(avecRoleNormalise) ?? avecRoleNormalise;
   }
 }

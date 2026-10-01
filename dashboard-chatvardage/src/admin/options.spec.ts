@@ -166,7 +166,10 @@ describe('Options AdminJS', () => {
         ok: true,
         status: 200,
         json: async () => [{
-          id: 'salon-1-message', roomId: 'salon-1', authorId: 'utilisateur-1', content: 'Bonjour le salon',
+          id: 'salon-1-message',
+          roomId: 'salon-1',
+          authorId: 'utilisateur-1',
+          content: 'a'.repeat(121),
         }],
       } as Response;
     });
@@ -187,12 +190,19 @@ describe('Options AdminJS', () => {
         channelId: 'salon-1',
         channelName: 'general',
         senderId: 'utilisateur-1',
+        apercu: `${'a'.repeat(120)}...`,
       }),
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:3004/api/messages/rooms/salon-1/history?limit=100',
       expect.objectContaining({ headers: { Authorization: 'Bearer jeton-admin' } }),
     );
+
+    await expect(messages.find(
+      { filters: { messageType: { value: 'Salon' } } },
+      {},
+      { currentAdmin: { jeton: 'jeton-admin' } },
+    )).resolves.toHaveLength(1);
 
     await messages.delete('salon-1-message', { currentAdmin: { jeton: 'jeton-admin' } });
     expect(fetchMock).toHaveBeenCalledWith(
@@ -387,6 +397,42 @@ describe('Options AdminJS', () => {
       senderId: 'utilisateur-1', recipientId: 'utilisateur-2', channelId: 'salon-1', content: 'Bonjour',
     }, contexte)).rejects.toMatchObject({ baseError: { message: 'Choisissez soit un destinataire, soit un salon.' } });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('traite un channelId vide comme un message prive lorsque le destinataire est defini', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      const chemin = String(input);
+      if (init?.method === 'POST') {
+        return { ok: true, status: 201, json: async () => ({ id: 'message-prive-1' }) } as Response;
+      }
+      if (chemin.endsWith('/api/admin/servers?decalage=0&limite=100')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ serveurs: [], suivant: null }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [{ id: 'message-prive-1', content: 'Bonjour' }],
+      } as Response;
+    });
+    const ressources = options.resources ?? [];
+    const messages = ressources[3].resource as RessourceApiDistante;
+
+    await messages.create({
+      senderId: 'utilisateur-1', recipientId: 'utilisateur-2', channelId: '', content: 'Bonjour',
+    }, { currentAdmin: { jeton: 'jeton-admin' } });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3004/api/messages/admin',
+      expect.objectContaining({
+        body: JSON.stringify({
+          senderId: 'utilisateur-1', recipientId: 'utilisateur-2', content: 'Bonjour',
+        }),
+      }),
+    );
   });
 
   it('refuse de creer un salon sans serveur avant d appeler Room-Service', async () => {

@@ -142,6 +142,15 @@ const cheminSuppressionMessageDeSalon = (channelId: string, id: string): string 
   `/api/messages/rooms/${channelId}/${id}`,
 );
 
+const transformerApercuMessage = (message: Record<string, unknown>): Record<string, unknown> => {
+  if (typeof message.content !== 'string') return message;
+  const contenuCompact = message.content.replace(/\s+/g, ' ').trim();
+  return {
+    ...message,
+    apercu: contenuCompact.length > 120 ? `${contenuCompact.slice(0, 120)}...` : contenuCompact,
+  };
+};
+
 const options: AdminJSOptions = {
   componentLoader: chargeurComposants,
   rootPath: '/administration',
@@ -397,7 +406,9 @@ const options: AdminJSOptions = {
           ? cheminSuppressionMessageDeSalon(message.channelId, id)
           : urlDuService('MESSAGE_SERVICE_URL', 'http://localhost:3004', `/api/messages/admin/${id}`)),
         suppressionDependanteEnregistrement: true,
-        champsFiltrables: ['recipientId', 'senderId', 'serverId', 'serverName', 'channelId', 'channelName'],
+        champsFiltrables: [
+          'messageType', 'recipientId', 'senderId', 'serverId', 'serverName', 'channelId', 'channelName',
+        ],
         chargerEnregistrements: chargerTousLesMessages(
           cheminMessages,
           cheminMessagesDeSalon,
@@ -414,6 +425,7 @@ const options: AdminJSOptions = {
           ...(typeof message.authorId === 'string' ? { senderId: message.authorId } : {}),
           ...(typeof message.roomId === 'string' ? { channelId: message.roomId } : {}),
         }),
+        transformerApercu: transformerApercuMessage,
         validerCreation: ({ recipientId, channelId }) => {
           if (Boolean(recipientId) === Boolean(channelId)) {
             throw new ValidationError({}, { message: 'Choisissez soit un destinataire, soit un salon.' });
