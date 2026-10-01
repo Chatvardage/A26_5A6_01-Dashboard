@@ -7,6 +7,6 @@ export class ControleurApplication {
   @Get()
   @Redirect('/administration', 302)
   redirigerVersAdministration(): void {
-
+    // La redirection est entierement declaree par @Redirect.
   }
 }

@@ -58,7 +58,8 @@ describe('Point d entree de l application', () => {
 
   it('monte le routeur AdminJS et ecoute le port configure', async () => {
     const utiliser = jest.fn();
-    const ecouter = jest.fn().mockResolvedValue(undefined);
+    const configurer = jest.fn();
+    const ecouter = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
     const portInitial = process.env.PORT;
     const secretInitial = process.env.COOKIE_SECRET;
     const secretSessionInitial = process.env.SESSION_SECRET;
@@ -78,7 +79,7 @@ describe('Point d entree de l application', () => {
     } as Response);
     construireRouteur.mockReturnValue('routeur-admin');
     jest.spyOn(NestFactory, 'create').mockResolvedValue({
-      getHttpAdapter: () => ({ getInstance: () => ({ use: utiliser }) }),
+      getHttpAdapter: () => ({ getInstance: () => ({ use: utiliser, set: configurer }) }),
       listen: ecouter,
     } as never);
 
@@ -106,8 +107,10 @@ describe('Point d entree de l application', () => {
         resave: false,
         saveUninitialized: false,
         secret: 'secret-session-de-test-de-plus-de-32-caracteres',
+        cookie: { httpOnly: true, sameSite: 'strict', secure: 'auto' },
       }),
     );
+    expect(configurer).toHaveBeenCalledWith('trust proxy', 1);
     expect(utiliser).toHaveBeenCalledWith('/administration', 'routeur-admin');
     expect(ecouter).toHaveBeenCalledWith(3000);
 
@@ -185,7 +188,7 @@ describe('Point d entree de l application', () => {
     construireRouteur.mockReturnValue('routeur-admin');
     jest.spyOn(NestFactory, 'create').mockResolvedValue({
       getHttpAdapter: () => ({ getInstance: () => ({ use: jest.fn() }) }),
-      listen: jest.fn().mockResolvedValue(undefined),
+      listen: jest.fn<() => Promise<void>>().mockResolvedValue(undefined),
     } as never);
 
     try {

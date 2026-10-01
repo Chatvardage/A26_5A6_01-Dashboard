@@ -46,7 +46,7 @@ const chargerPageServeurs = async (
     // eslint-disable-next-line no-await-in-loop
     const page = await requete<PageServeurs>(`${chemin}?decalage=${decalage}&limite=100`);
     serveurs.push(...page.serveurs);
-    decalage = page.suivant;
+    decalage = page.suivant ?? null;
   }
 
   return serveurs;

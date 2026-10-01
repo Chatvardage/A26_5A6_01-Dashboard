@@ -158,7 +158,7 @@ describe('RessourceApiDistante', () => {
     fetchMock.mockResolvedValueOnce({
       ok: false,
       status: 502,
-      json: async () => { throw new Error('Corps absent'); },
+      json: async (): Promise<unknown> => { throw new Error('Corps absent'); },
     } as Response);
     const ressource = new RessourceApiDistante({
       id: 'utilisateurs',
@@ -682,7 +682,7 @@ describe('RessourceApiDistante', () => {
     fetchMock.mockResolvedValueOnce({
       ok: false,
       status: 502,
-      json: async () => { throw new Error('Corps absent'); },
+      json: async (): Promise<unknown> => { throw new Error('Corps absent'); },
     } as Response);
     const ressource = new RessourceApiDistante({
       id: 'utilisateurs',

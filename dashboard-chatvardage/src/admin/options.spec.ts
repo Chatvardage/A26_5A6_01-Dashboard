@@ -282,6 +282,18 @@ describe('Options AdminJS', () => {
     );
   });
 
+  it('arrete la pagination si le service omet le champ suivant', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ serveurs: [{ id: 'serveur-1', nom: 'Projet', public: true }] }),
+    } as Response);
+    const serveurs = (options.resources ?? [])[1].resource as RessourceApiDistante;
+
+    await expect(serveurs.find({}, {}, { currentAdmin: { jeton: autreJetonTest } })).resolves.toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('charge toutes les pages de serveurs et transforme leurs proprietes', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
       const chemin = String(input);

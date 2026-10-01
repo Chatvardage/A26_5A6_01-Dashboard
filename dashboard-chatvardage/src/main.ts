@@ -74,7 +74,12 @@ export async function demarrerApplication() {
   }
   const { secretCookie, secretSession } = resoudreSecrets();
   const application = await NestFactory.create(ModuleApplication);
+  const estProduction = process.env.NODE_ENV === 'production';
+  // Le proxy HTTPS en amont transmet X-Forwarded-Proto, requis par cookie.secure = 'auto'.
+  if (estProduction) application.getHttpAdapter().getInstance().set('trust proxy', 1);
   const administration = new AdminJS(options);
+  // @adminjs/express (version figee) est un paquet CommonJS : sous NodeNext, TypeScript
+  // type mal son import par defaut, alors que Node fournit bien l'objet attendu.
   const routeur = (AdminJSExpress as unknown as typeof import('@adminjs/express').default)
     .buildAuthenticatedRouter(
       administration,
@@ -88,6 +93,11 @@ export async function demarrerApplication() {
         resave: false,
         saveUninitialized: false,
         secret: secretSession,
+        cookie: {
+          httpOnly: true,
+          sameSite: 'strict',
+          secure: estProduction ? 'auto' : false,
+        },
       },
     );
 

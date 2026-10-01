@@ -284,11 +284,11 @@ export class RessourceApiDistante extends BaseResource {
 
   private static normaliserValeur(champ: string, valeur: unknown): string {
     if (champ === 'role' && typeof valeur === 'string') return RessourceApiDistante.normaliserRole(valeur);
-    return String(valeur ?? '').trim().toLocaleLowerCase();
+    return String(valeur ?? '').trim().toLowerCase();
   }
 
   private static normaliserRole(role: string): string {
-    const valeur = role.trim().toLocaleLowerCase();
+    const valeur = role.trim().toLowerCase();
     if (valeur === 'user' || valeur === 'utilisateur') return 'user';
     if (valeur === 'admin' || valeur === 'administrateur') return 'admin';
     return valeur;
