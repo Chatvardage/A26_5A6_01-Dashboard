@@ -21,6 +21,7 @@ ENV NODE_ENV=production
 RUN npm run build
 
 # Generate AdminJS user components before dev dependencies are removed.
+# Bundling only: no microservice is called (verified with fetch disabled).
 RUN node scripts/generate-adminjs.mjs
 
 FROM node:20-alpine AS runtime

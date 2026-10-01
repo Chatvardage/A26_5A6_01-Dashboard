@@ -42,7 +42,7 @@ const chargerPageServeurs = async (
       Logger.warn(`Pagination interrompue apres ${limitePagesServeurs} pages pour ${chemin}`, 'DashboardAdmin');
       break;
     }
-    // Le service fournit le decalage suivant avec chaque page; il est inconnu a l'avance.
+    // Sequentiel par necessite : seule la reponse d'une page donne le decalage de la suivante.
     // eslint-disable-next-line no-await-in-loop
     const page = await requete<PageServeurs>(`${chemin}?decalage=${decalage}&limite=100`);
     serveurs.push(...page.serveurs);

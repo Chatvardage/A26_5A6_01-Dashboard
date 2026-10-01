@@ -40,31 +40,27 @@ export async function authentifierAdministrateur(courriel: string, motDePasse: s
   }
 }
 
-// Valeur par defaut fournie par l'Infra (.env.example); jamais acceptee hors developpement.
+// Valeur par defaut fournie par l'Infra (.env.example); remplacee en dev/test, refusee ailleurs.
 const valeurSecreteLocale = 'dashboard_cookie_secret_for_local_development';
 
 export function resoudreSecrets(environnement: NodeJS.ProcessEnv = process.env) {
   const mode = environnement.NODE_ENV;
-  const estDeveloppementLocal = !mode || mode === 'development';
-  const estTest = mode === 'test';
+  const peutGenerer = !mode || mode === 'development' || mode === 'test';
   const cookieConfigure = environnement.COOKIE_SECRET;
   const sessionConfigure = environnement.SESSION_SECRET;
 
-  const secretCookie = estDeveloppementLocal && (!cookieConfigure || cookieConfigure === valeurSecreteLocale)
+  const secretCookie = peutGenerer && (!cookieConfigure || cookieConfigure === valeurSecreteLocale)
     ? randomBytes(32).toString('hex')
-    : cookieConfigure ?? valeurSecreteLocale;
-  const secretSession = (estDeveloppementLocal || estTest)
-    && (!sessionConfigure || sessionConfigure === secretCookie)
+    : cookieConfigure ?? '';
+  const secretSession = peutGenerer && (!sessionConfigure || sessionConfigure === secretCookie)
     ? randomBytes(32).toString('hex')
     : sessionConfigure ?? '';
 
-  if (!estTest) {
-    if (secretCookie.length < 32 || secretCookie === valeurSecreteLocale) {
-      throw new Error('COOKIE_SECRET doit contenir au moins 32 caracteres aleatoires hors tests.');
-    }
-    if (secretSession.length < 32 || secretSession === secretCookie) {
-      throw new Error('SESSION_SECRET doit etre defini avec une valeur aleatoire distincte de COOKIE_SECRET.');
-    }
+  if (secretCookie.length < 32 || secretCookie === valeurSecreteLocale) {
+    throw new Error('COOKIE_SECRET doit contenir au moins 32 caracteres aleatoires.');
+  }
+  if (secretSession.length < 32 || secretSession === secretCookie) {
+    throw new Error('SESSION_SECRET doit etre defini avec une valeur aleatoire distincte de COOKIE_SECRET.');
   }
 
   return { secretCookie, secretSession };

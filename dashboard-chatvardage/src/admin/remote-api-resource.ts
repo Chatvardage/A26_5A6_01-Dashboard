@@ -34,6 +34,11 @@ type FiltreAdminJS = {
   filters?: Record<string, { value?: unknown }>;
 };
 
+type EntreeCache = {
+  expireLe: number;
+  promesse: Promise<Record<string, unknown>[]>;
+};
+
 const dureeCacheLectureMs = 1000;
 const longueurMinimaleJeton = 40;
 const motifJetonJwt = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
@@ -51,11 +56,8 @@ const creerErreurApiDistante = (message: string, statut: number): ErreurApiDista
 export class RessourceApiDistante extends BaseResource {
   private readonly proprietes: BaseProperty[];
 
-  private cacheEnregistrements?: {
-    jeton?: string;
-    expireLe: number;
-    promesse: Promise<Record<string, unknown>[]>;
-  };
+  // Une entree par jeton : chaque session admin garde son propre resultat.
+  private readonly caches = new Map<string | undefined, EntreeCache>();
 
   constructor(private readonly configuration: ConfigurationRessourceDistante) {
     super();
@@ -163,7 +165,7 @@ export class RessourceApiDistante extends BaseResource {
   }
 
   async delete(identifiant: string, contexte?: unknown): Promise<void> {
-    // Une copie du cache (<= 1 s) suffit : les champs servant au chemin ne changent pas apres creation.
+    // Le cache est bref et les champs servant au chemin ne changent pas apres creation.
     const enregistrement = this.configuration.suppressionDependanteEnregistrement
       ? (await this.chargerEnregistrements(contexte)).find(
         (element) => String(element.id) === identifiant,
@@ -183,8 +185,12 @@ export class RessourceApiDistante extends BaseResource {
   private async chargerEnregistrements(contexte?: unknown): Promise<Record<string, unknown>[]> {
     const jeton = (contexte as { currentAdmin?: { jeton?: string } } | undefined)
       ?.currentAdmin?.jeton;
-    const cache = this.cacheEnregistrements;
-    if (cache && cache.jeton === jeton && cache.expireLe > Date.now()) return cache.promesse;
+    const maintenant = Date.now();
+    this.caches.forEach((entree, cle) => {
+      if (entree.expireLe <= maintenant) this.caches.delete(cle);
+    });
+    const cache = this.caches.get(jeton);
+    if (cache) return cache.promesse;
 
     const promesse = (async () => {
       let enregistrements: Record<string, unknown>[];
@@ -199,23 +205,23 @@ export class RessourceApiDistante extends BaseResource {
       }
       return enregistrements.map((enregistrement) => this.transformerLecture(enregistrement));
     })();
-    const cacheNouveau = { jeton, expireLe: Number.POSITIVE_INFINITY, promesse };
-    this.cacheEnregistrements = cacheNouveau;
+    const cacheNouveau: EntreeCache = { expireLe: Number.POSITIVE_INFINITY, promesse };
+    this.caches.set(jeton, cacheNouveau);
 
     try {
       const enregistrements = await promesse;
-      if (this.cacheEnregistrements === cacheNouveau) {
+      if (this.caches.get(jeton) === cacheNouveau) {
         cacheNouveau.expireLe = Date.now() + dureeCacheLectureMs;
       }
       return enregistrements;
     } catch (erreur) {
-      if (this.cacheEnregistrements === cacheNouveau) this.cacheEnregistrements = undefined;
+      if (this.caches.get(jeton) === cacheNouveau) this.caches.delete(jeton);
       throw erreur;
     }
   }
 
   private invaliderCache(): void {
-    this.cacheEnregistrements = undefined;
+    this.caches.clear();
   }
 
   private static async requete<T>(
@@ -260,10 +266,11 @@ export class RessourceApiDistante extends BaseResource {
   ): Record<string, unknown>[] {
     if (!tri?.sortBy) return enregistrements;
 
+    const champ = tri.sortBy;
     const multiplicateur = tri.direction === 'desc' ? -1 : 1;
     // Copie requise : sort() trie sur place et le tableau recu peut etre celui du cache partage.
-    return [...enregistrements].sort((gauche, droite) => String(gauche[tri.sortBy!])
-      .localeCompare(String(droite[tri.sortBy!])) * multiplicateur);
+    return [...enregistrements].sort((gauche, droite) => String(gauche[champ] ?? '')
+      .localeCompare(String(droite[champ] ?? '')) * multiplicateur);
   }
 
   private filtrer(enregistrements: Record<string, unknown>[], filtre: unknown): Record<string, unknown>[] {

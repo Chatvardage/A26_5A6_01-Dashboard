@@ -14,6 +14,10 @@ const entetesAdmin = { headers: { Authorization: `Bearer ${jetonTest}` } };
 describe('Options AdminJS', () => {
   afterEach(() => {
     jest.restoreAllMocks();
+    // Les ressources sont des singletons de module : leur cache par jeton survivrait d'un test a l'autre.
+    (options.resources ?? []).forEach((ressource) => {
+      (ressource.resource as unknown as { caches: Map<unknown, unknown> }).caches.clear();
+    });
   });
 
   it('enregistre les ressources distantes de gestion', () => {
@@ -304,19 +308,20 @@ describe('Options AdminJS', () => {
       .resolves.toHaveLength(0);
   });
 
-  it('laisse sans apercu un message dont le contenu n est pas du texte', async () => {
+  it('compacte l apercu d un message court et l omet si le contenu n est pas du texte', async () => {
     jest.spyOn(global, 'fetch').mockImplementation(async (input) => ({
       ok: true,
       status: 200,
       json: async () => (String(input).endsWith('/api/messages/admin')
-        ? [{ id: 'prive-1', content: null }]
+        ? [{ id: 'prive-1', content: null }, { id: 'prive-2', content: ' Bonjour \n  salut ' }]
         : { serveurs: [], suivant: null }),
     } as Response));
     const messages = (options.resources ?? [])[3].resource as RessourceApiDistante;
 
-    const [message] = await messages.find({}, {}, { currentAdmin: { jeton: `${jetonTest}apercu` } });
+    const [sansTexte, court] = await messages.find({}, {}, contexteAdmin);
 
-    expect(message.params.apercu).toBeUndefined();
+    expect(sansTexte.params.apercu).toBeUndefined();
+    expect(court.params.apercu).toBe('Bonjour salut');
   });
 
   it('plafonne la pagination si le service renvoie toujours une page suivante', async () => {

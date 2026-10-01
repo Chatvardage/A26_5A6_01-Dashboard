@@ -708,6 +708,35 @@ describe('RessourceApiDistante', () => {
       .rejects.toThrow('Le service distant a retourne 502.');
   });
 
+  it('garde un cache par jeton, purge les entrees expirees et trie les valeurs absentes en premier', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => [
+        { id: '1', pseudo: 'b' }, { id: '2' }, { id: '3', pseudo: 'a' }, { id: '4', pseudo: null },
+      ],
+    } as Response));
+    const maintenant = jest.spyOn(Date, 'now').mockReturnValue(1_000);
+    const ressource = new RessourceApiDistante({
+      id: 'utilisateurs',
+      cheminListe: 'http://auth.test/api/users',
+      cheminCreation: 'http://auth.test/api/users',
+      cheminSuppression: (id) => `http://auth.test/api/users/${id}`,
+      champsFiltrables: [],
+      champs: [{ path: 'id', type: 'uuid', isId: true }, { path: 'pseudo', type: 'string' }],
+    });
+
+    const tries = await ressource.find({}, { sort: { sortBy: 'pseudo', direction: 'asc' } }, contexteAdmin);
+    await ressource.count({}, { currentAdmin: { jeton: autreJetonTest } });
+    await ressource.count({}, contexteAdmin);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    maintenant.mockReturnValue(5_000);
+    await ressource.count({}, contexteAdmin);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(tries.map((enregistrement) => enregistrement.params.id)).toEqual(['2', '4', '3', '1']);
+  });
+
   it('gere les valeurs nulles, le tri descendant et les erreurs non standard', async () => {
     const fetchMock = jest.spyOn(global, 'fetch');
     const enregistrements = [

@@ -235,4 +235,14 @@ describe('Point d entree de l application', () => {
       SESSION_SECRET: 'session-secret-production-de-plus-de-32-caracteres',
     })).toThrow('COOKIE_SECRET doit contenir');
   });
+
+  it('genere des secrets aleatoires en mode test et refuse un secret configure trop court', () => {
+    const { secretCookie, secretSession } = resoudreSecrets({ NODE_ENV: 'test' });
+
+    expect(secretCookie).toHaveLength(64);
+    expect(secretSession).toHaveLength(64);
+    expect(secretSession).not.toBe(secretCookie);
+    expect(() => resoudreSecrets({ NODE_ENV: 'test', COOKIE_SECRET: 'court' }))
+      .toThrow('COOKIE_SECRET doit contenir');
+  });
 });

@@ -24,6 +24,8 @@ const cheminSuppressionMessagePrive = (id: string): string => urlMessages(
   `/api/messages/admin/${encodeURIComponent(id)}`,
 );
 
+// Limite connue (README) : une requete d'historique par salon; une route d'agregation
+// dans Message-Service remplacerait ce chargement.
 const chargerTousLesMessages: ChargeurEnregistrements = async (requete) => {
   const [messagesPrives, salons] = await Promise.all([
     requete<Record<string, unknown>[]>(cheminMessages),
