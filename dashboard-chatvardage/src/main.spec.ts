@@ -64,7 +64,7 @@ describe('Point d entree de l application', () => {
     expect(journaliser).toHaveBeenCalledWith(expect.stringContaining('DNS introuvable'), 'Dashboard');
   });
 
-  it('monte le routeur AdminJS et ecoute le port configure', async () => {
+  it.each(['production', 'staging'])('monte le routeur AdminJS et ecoute le port configure (%s)', async (mode) => {
     const utiliser = jest.fn();
     const configurer = jest.fn();
     const ecouter = jest.fn<() => Promise<void>>().mockResolvedValue(undefined);
@@ -73,7 +73,7 @@ describe('Point d entree de l application', () => {
     const secretSessionInitial = process.env.SESSION_SECRET;
     const environnementInitial = process.env.NODE_ENV;
     delete process.env.PORT;
-    process.env.NODE_ENV = 'production';
+    process.env.NODE_ENV = mode;
     process.env.COOKIE_SECRET = 'secret-cookie-de-test-de-plus-de-32-caracteres';
     process.env.SESSION_SECRET = 'secret-session-de-test-de-plus-de-32-caracteres';
     jest.spyOn(global, 'fetch').mockResolvedValue({

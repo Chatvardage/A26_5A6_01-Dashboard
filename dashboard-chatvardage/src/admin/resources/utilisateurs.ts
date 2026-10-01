@@ -1,3 +1,5 @@
+import { ValidationError } from 'adminjs';
+
 import { RessourceApiDistante } from '../remote-api-resource.js';
 
 import { optionsRessource, urlDuService } from './commun.js';
@@ -24,6 +26,32 @@ export const ressourceUtilisateurs = {
     champsFiltrables: ['pseudo', 'courriel', 'role'],
     champsFiltrablesExacts: ['role'],
     normaliserChamp: normaliserChampUtilisateur,
+    // POST /api/users cree toujours un compte standard : le role admin est attribue ensuite
+    // par PATCH /api/users/:id/role.
+    transformerCreation: (parametres) => ({
+      pseudo: parametres.pseudo,
+      courriel: parametres.courriel,
+      mot_de_passe: parametres.mot_de_passe,
+    }),
+    apresCreation: async (utilisateur, parametres, requete) => {
+      if (normaliserRole(String(parametres.role)) !== 'admin') return utilisateur;
+      try {
+        return await requete<Record<string, unknown>>(
+          `${cheminUtilisateurs}/${encodeURIComponent(String(utilisateur.id))}/role`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: 'admin' }),
+          },
+        );
+      } catch (erreur) {
+        const detail = erreur instanceof Error ? erreur.message : String(erreur);
+        throw new ValidationError({}, {
+          message: 'Le compte a ete cree comme utilisateur standard, mais le role administrateur '
+            + `n a pas pu etre attribue : ${detail}`,
+        });
+      }
+    },
     transformerLecture: (utilisateur) => (typeof utilisateur.role === 'string'
       ? { ...utilisateur, role: normaliserRole(utilisateur.role) }
       : utilisateur),

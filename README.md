@@ -60,7 +60,7 @@ dont le binaire natif est requis par le bundler AdminJS. Le Dockerfile autorise
 | Action | Service et routes utilisees |
 | --- | --- |
 | Connexion | Authentification: `POST /api/auth/login` |
-| Utilisateurs | Authentification: `GET/POST /api/users`, `DELETE /api/users/:id` |
+| Utilisateurs | Authentification: `GET/POST /api/users`, `PATCH /api/users/:id/role` (compte cree comme administrateur), `DELETE /api/users/:id` |
 | Serveurs | Room-Service: `GET /api/admin/servers`, `GET /api/servers/:id`, `POST /api/servers`, `DELETE /api/servers/:id` |
 | Salons | Room-Service: `POST /api/servers/:id/channels`, `DELETE /api/channels/:id` |
 | Messages prives | Message-Service: `GET/POST /api/messages/admin`, `DELETE /api/messages/admin/:id` |

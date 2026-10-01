@@ -13,6 +13,8 @@ export type ChargeurEnregistrements = (
   requete: <T>(chemin: string) => Promise<T>,
 ) => Promise<Record<string, unknown>[]>;
 
+export type RequeteDistante = <T>(chemin: string, optionsRequete?: RequestInit) => Promise<T>;
+
 type ConfigurationRessourceDistante = {
   id: string;
   cheminListe: string;
@@ -28,6 +30,12 @@ type ConfigurationRessourceDistante = {
   transformerLecture?: (enregistrement: Record<string, unknown>) => Record<string, unknown>;
   transformerApercu?: (enregistrement: Record<string, unknown>) => Record<string, unknown>;
   chargerEnregistrements?: ChargeurEnregistrements;
+  // Etape complementaire apres une creation reussie (ex. : attribuer un role par une autre route).
+  apresCreation?: (
+    enregistrement: Record<string, unknown>,
+    parametres: Record<string, unknown>,
+    requete: RequeteDistante,
+  ) => Promise<Record<string, unknown>>;
 };
 
 type FiltreAdminJS = {
@@ -158,7 +166,17 @@ export class RessourceApiDistante extends BaseResource {
 
     this.viderCache();
     if (!enregistrement.id) throw new Error('Le service n a pas retourne l identifiant de l element cree.');
-    return this.transformerLecture(enregistrement);
+    if (!this.configuration.apresCreation) return this.transformerLecture(enregistrement);
+
+    const requete: RequeteDistante = (chemin, optionsRequete) => (
+      RessourceApiDistante.requete(chemin, contexte, optionsRequete)
+    );
+    try {
+      return this.transformerLecture(await this.configuration.apresCreation(enregistrement, parametres, requete));
+    } finally {
+      // L'etape complementaire modifie aussi l'element : une lecture concurrente a pu remettre l'ancien en cache.
+      this.viderCache();
+    }
   }
 
   // AdminJS requires this instance override even though it has no state.

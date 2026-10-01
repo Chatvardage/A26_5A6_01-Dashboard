@@ -84,7 +84,10 @@ export async function demarrerApplication() {
   const { secretCookie, secretSession } = resoudreSecrets();
   const port = resoudrePort();
   const application = await NestFactory.create(ModuleApplication);
-  const estProduction = process.env.NODE_ENV === 'production';
+  // Tout mode autre que development/test (production, staging...) est traite comme expose,
+  // comme dans resoudreSecrets().
+  const mode = process.env.NODE_ENV;
+  const estProduction = !!mode && mode !== 'development' && mode !== 'test';
   // getInstance() est l'application Express : @nestjs/platform-express est l'adaptateur requis ici.
   // Le proxy HTTPS en amont transmet X-Forwarded-Proto, requis par cookie.secure = 'auto'.
   if (estProduction) application.getHttpAdapter().getInstance().set('trust proxy', 1);

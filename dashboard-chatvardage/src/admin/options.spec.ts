@@ -533,6 +533,72 @@ describe('Options AdminJS', () => {
     );
   });
 
+  it('cree un compte standard puis lui attribue le role administrateur si demande', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input, initialisation) => ({
+      ok: true,
+      status: initialisation?.method === 'PATCH' ? 200 : 201,
+      json: async () => ({
+        id: 'utilisateur-1', pseudo: 'Eva', role: initialisation?.method === 'PATCH' ? 'admin' : 'utilisateur',
+      }),
+    } as Response));
+    const utilisateurs = (options.resources ?? [])[0].resource as RessourceApiDistante;
+    const compte = {
+      pseudo: 'Eva', courriel: 'eva@example.test', mot_de_passe: 'mot-de-passe',
+    };
+
+    await expect(utilisateurs.create({ ...compte, role: 'user' }, contexteAdmin))
+      .resolves.toMatchObject({ id: 'utilisateur-1', role: 'user' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:3001/api/users', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify(compte),
+    }));
+
+    await expect(utilisateurs.create({ ...compte, role: 'admin' }, contexteAdmin))
+      .resolves.toMatchObject({ id: 'utilisateur-1', role: 'admin' });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenLastCalledWith('http://localhost:3001/api/users/utilisateur-1/role', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jetonTest}` },
+      body: JSON.stringify({ role: 'admin' }),
+      signal: expect.any(AbortSignal),
+    });
+  });
+
+  it('signale un compte cree sans le role administrateur si l attribution echoue', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch');
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      json: async () => ({ id: 'utilisateur-1', role: 'utilisateur' }),
+    } as Response);
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      json: async () => ({ erreur: 'acces refuse' }),
+    } as Response);
+    const utilisateurs = (options.resources ?? [])[0].resource as RessourceApiDistante;
+    const parametres = {
+      pseudo: 'Eva', courriel: 'eva@example.test', mot_de_passe: 'mot-de-passe', role: 'admin',
+    };
+
+    await expect(utilisateurs.create(parametres, contexteAdmin)).rejects.toMatchObject({
+      baseError: {
+        message: 'Le compte a ete cree comme utilisateur standard, mais le role administrateur '
+          + 'n a pas pu etre attribue : acces refuse',
+      },
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      json: async () => ({ id: 'utilisateur-2', role: 'utilisateur' }),
+    } as Response);
+    fetchMock.mockRejectedValueOnce('reseau coupe');
+    await expect(utilisateurs.create(parametres, contexteAdmin)).rejects.toMatchObject({
+      baseError: { message: expect.stringContaining('attribue : reseau coupe') },
+    });
+  });
+
   it('refuse un message sans destination ou avec deux destinations', async () => {
     const fetchMock = jest.spyOn(global, 'fetch');
     const ressources = options.resources ?? [];
