@@ -203,6 +203,16 @@ describe('Options AdminJS', () => {
       {},
       { currentAdmin: { jeton: 'jeton-admin' } },
     )).resolves.toHaveLength(1);
+    await expect(messages.find(
+      { filters: { messageType: { value: 'Sal' } } },
+      {},
+      { currentAdmin: { jeton: 'jeton-admin' } },
+    )).resolves.toHaveLength(0);
+    await expect(messages.find(
+      { filters: { senderId: { value: 'utilisateur-' } } },
+      {},
+      { currentAdmin: { jeton: 'jeton-admin' } },
+    )).resolves.toHaveLength(0);
 
     await messages.delete('salon-1-message', { currentAdmin: { jeton: 'jeton-admin' } });
     expect(fetchMock).toHaveBeenCalledWith(
@@ -310,6 +320,48 @@ describe('Options AdminJS', () => {
     );
   });
 
+  it('limite a cinq les requetes simultanees aux historiques de salons', async () => {
+    let requetesActives = 0;
+    let maximumRequetesActives = 0;
+    jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const chemin = String(input);
+      if (chemin.endsWith('/api/messages/admin')) {
+        return { ok: true, status: 200, json: async () => [] } as Response;
+      }
+      if (chemin.endsWith('/api/admin/servers?decalage=0&limite=100')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ serveurs: [{ id: 'serveur-1' }], suivant: null }),
+        } as Response;
+      }
+      if (chemin.endsWith('/api/servers/serveur-1')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            id: 'serveur-1',
+            nom: 'Projet',
+            salons: Array.from({ length: 12 }, (_, index) => ({ id: `salon-${index}`, nom: 'general' })),
+          }),
+        } as Response;
+      }
+
+      requetesActives += 1;
+      maximumRequetesActives = Math.max(maximumRequetesActives, requetesActives);
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 1);
+      });
+      requetesActives -= 1;
+      return { ok: true, status: 200, json: async () => [] } as Response;
+    });
+    const ressources = options.resources ?? [];
+    const messages = ressources[3].resource as RessourceApiDistante;
+
+    await expect(messages.find({}, {}, { currentAdmin: { jeton: 'jeton-admin' } })).resolves.toHaveLength(0);
+    expect(maximumRequetesActives).toBe(5);
+  });
+
   it('adapte les creations et suppressions de chaque ressource', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input, initialisation) => {
       const chemin = String(input);
@@ -339,13 +391,13 @@ describe('Options AdminJS', () => {
     );
     const contexte = { currentAdmin: { jeton: 'jeton-admin' } };
 
-    await utilisateurs.delete('utilisateur-1', contexte);
+    await utilisateurs.delete('utilisateur/1', contexte);
     await serveurs.create({ name: 'Public', visibility: 'public' }, contexte);
-    await serveurs.delete('serveur-1', contexte);
+    await serveurs.delete('serveur/1', contexte);
     await salons.create({
       serverId: 'serveur-1', name: 'general', access: 'tous', writing: 'tous',
     }, contexte);
-    await salons.delete('salon-1', contexte);
+    await salons.delete('salon/1', contexte);
     await messages.create({
       senderId: 'utilisateur-1', recipientId: 'utilisateur-2', content: 'Bonjour',
     }, contexte);
@@ -354,6 +406,18 @@ describe('Options AdminJS', () => {
     }, contexte);
     await messages.delete('element-1', contexte);
 
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3001/api/users/utilisateur%2F1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3003/api/servers/serveur%2F1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3003/api/channels/salon%2F1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:3003/api/servers/serveur-1/channels',
       expect.objectContaining({

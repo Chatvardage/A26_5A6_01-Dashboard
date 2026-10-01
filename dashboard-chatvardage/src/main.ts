@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 
 import AdminJS from 'adminjs';
 import AdminJSExpress from '@adminjs/express';
@@ -44,14 +44,19 @@ export async function demarrerApplication() {
     && (!secretCookieConfigure || secretCookieConfigure === valeurSecreteLocale)
     ? randomBytes(32).toString('hex')
     : secretCookieConfigure ?? valeurSecreteLocale;
-  if (process.env.NODE_ENV !== 'test'
-    && (secretCookie.length < 32 || secretCookie === valeurSecreteLocale)) {
-    throw new Error('COOKIE_SECRET doit contenir au moins 32 caracteres aleatoires hors tests.');
-  }
   const secretSessionConfigure = process.env.SESSION_SECRET;
-  const secretSession = secretSessionConfigure && secretSessionConfigure !== secretCookie
-    ? secretSessionConfigure
-    : createHmac('sha256', secretCookie).update('chatvardage-admin-session').digest('hex');
+  const secretSession = (estDeveloppementLocal || process.env.NODE_ENV === 'test')
+    && (!secretSessionConfigure || secretSessionConfigure === secretCookie)
+    ? randomBytes(32).toString('hex')
+    : secretSessionConfigure ?? '';
+  if (process.env.NODE_ENV !== 'test') {
+    if (secretCookie.length < 32 || secretCookie === valeurSecreteLocale) {
+      throw new Error('COOKIE_SECRET doit contenir au moins 32 caracteres aleatoires hors tests.');
+    }
+    if (secretSession.length < 32 || secretSession === secretCookie) {
+      throw new Error('SESSION_SECRET doit etre defini avec une valeur aleatoire distincte de COOKIE_SECRET.');
+    }
+  }
   const application = await NestFactory.create(ModuleApplication);
   const administration = new AdminJS(options);
   const routeur = (AdminJSExpress as unknown as typeof import('@adminjs/express').default)

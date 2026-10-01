@@ -24,7 +24,7 @@ ENV NODE_ENV=production
 RUN npm run build
 
 # Generate AdminJS user components before dev dependencies are removed.
-RUN node --input-type=module -e "import AdminJS from 'adminjs'; import options from './dist/admin/options.js'; await new AdminJS(options).initialize();"
+RUN node scripts/generate-adminjs.mjs
 
 FROM node:20-alpine AS runtime
 

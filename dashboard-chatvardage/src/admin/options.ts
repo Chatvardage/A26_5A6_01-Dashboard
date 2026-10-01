@@ -18,6 +18,22 @@ type PageServeurs = {
   suivant: number | null;
 };
 
+const tailleLotRequetes = 5;
+
+const chargerParLots = async <T, R>(
+  elements: T[],
+  charger: (element: T) => Promise<R>,
+): Promise<R[]> => {
+  const resultats: R[] = [];
+  for (let index = 0; index < elements.length; index += tailleLotRequetes) {
+    // Le lot borne les requêtes simultanées adressées aux microservices.
+    // eslint-disable-next-line no-await-in-loop
+    const lot = await Promise.all(elements.slice(index, index + tailleLotRequetes).map(charger));
+    resultats.push(...lot);
+  }
+  return resultats;
+};
+
 const chargerPageServeurs = async (
   requete: <T>(chemin: string) => Promise<T>,
   chemin: string,
@@ -46,8 +62,11 @@ const chargerTousLesSalons = (
   cheminServeurs: string,
 ): ChargeurEnregistrements => async (requete) => {
   const serveurs = await chargerTousLesServeurs(cheminListeServeurs)(requete);
-  const details = await Promise.all(
-    serveurs.map((serveur) => requete<Record<string, unknown>>(`${cheminServeurs}/${serveur.id}`)),
+  const details = await chargerParLots(
+    serveurs,
+    (serveur) => requete<Record<string, unknown>>(
+      `${cheminServeurs}/${encodeURIComponent(String(serveur.id))}`,
+    ),
   );
 
   return details.flatMap((serveur) => {
@@ -73,7 +92,7 @@ const chargerTousLesMessages = (
     requete<Record<string, unknown>[]>(cheminMessages),
     chargerTousLesSalons(cheminListeServeurs, cheminServeurs)(requete),
   ]);
-  const messagesDeSalon = await Promise.all(salons.map(async (salon) => {
+  const messagesDeSalon = await chargerParLots(salons, async (salon) => {
     const channelId = String(salon.id);
     try {
       const messages = await requete<Record<string, unknown>[]>(cheminMessagesDeSalon(channelId));
@@ -90,7 +109,7 @@ const chargerTousLesMessages = (
       Logger.warn(`Impossible de charger les messages du salon ${channelId}: ${detail}`, 'DashboardAdmin');
       return [];
     }
-  }));
+  });
 
   return [
     ...messagesPrives.map((message) => ({ ...message, messageType: 'Prive' })),
@@ -126,21 +145,30 @@ export const optionsRessource = (
 const cheminListeServeurs = urlDuService('ROOM_SERVICE_URL', 'http://localhost:3003', '/api/admin/servers');
 const cheminServeurs = urlDuService('ROOM_SERVICE_URL', 'http://localhost:3003', '/api/servers');
 const cheminMessages = urlDuService('MESSAGE_SERVICE_URL', 'http://localhost:3004', '/api/messages/admin');
-const cheminMessagesDeSalon = (channelId: string): string => urlDuService(
-  'MESSAGE_SERVICE_URL',
-  'http://localhost:3004',
-  `/api/messages/rooms/${channelId}/history?limit=100`,
-);
-const cheminCreationMessagesDeSalon = (channelId: string): string => urlDuService(
-  'MESSAGE_SERVICE_URL',
-  'http://localhost:3004',
-  `/api/messages/rooms/${channelId}/admin`,
-);
-const cheminSuppressionMessageDeSalon = (channelId: string, id: string): string => urlDuService(
-  'MESSAGE_SERVICE_URL',
-  'http://localhost:3004',
-  `/api/messages/rooms/${channelId}/${id}`,
-);
+const cheminMessagesDeSalon = (channelId: string): string => {
+  const chemin = `/api/messages/rooms/${encodeURIComponent(channelId)}/history?limit=100`;
+  return urlDuService('MESSAGE_SERVICE_URL', 'http://localhost:3004', chemin);
+};
+const cheminCreationMessagesDeSalon = (channelId: string): string => {
+  const chemin = `/api/messages/rooms/${encodeURIComponent(channelId)}/admin`;
+  return urlDuService('MESSAGE_SERVICE_URL', 'http://localhost:3004', chemin);
+};
+const cheminSuppressionMessageDeSalon = (channelId: string, id: string): string => {
+  const chemin = `/api/messages/rooms/${encodeURIComponent(channelId)}/${encodeURIComponent(id)}`;
+  return urlDuService('MESSAGE_SERVICE_URL', 'http://localhost:3004', chemin);
+};
+const cheminSuppressionUtilisateur = (id: string): string => {
+  const chemin = `/api/users/${encodeURIComponent(id)}`;
+  return urlDuService('AUTH_SERVICE_URL', 'http://localhost:3001', chemin);
+};
+const cheminSuppressionSalon = (id: string): string => {
+  const chemin = `/api/channels/${encodeURIComponent(id)}`;
+  return urlDuService('ROOM_SERVICE_URL', 'http://localhost:3003', chemin);
+};
+const cheminSuppressionMessagePrive = (id: string): string => {
+  const chemin = `/api/messages/admin/${encodeURIComponent(id)}`;
+  return urlDuService('MESSAGE_SERVICE_URL', 'http://localhost:3004', chemin);
+};
 
 const transformerApercuMessage = (message: Record<string, unknown>): Record<string, unknown> => {
   if (typeof message.content !== 'string') return message;
@@ -223,8 +251,9 @@ const options: AdminJSOptions = {
         id: 'utilisateurs',
         cheminListe: urlDuService('AUTH_SERVICE_URL', 'http://localhost:3001', '/api/users'),
         cheminCreation: urlDuService('AUTH_SERVICE_URL', 'http://localhost:3001', '/api/users'),
-        cheminSuppression: (id) => urlDuService('AUTH_SERVICE_URL', 'http://localhost:3001', `/api/users/${id}`),
+        cheminSuppression: cheminSuppressionUtilisateur,
         champsFiltrables: ['pseudo', 'courriel', 'role'],
+        champsFiltrablesExacts: ['role'],
         champs: [
           { path: 'id', type: 'uuid', isId: true },
           { path: 'pseudo', type: 'string', isSortable: true },
@@ -269,8 +298,9 @@ const options: AdminJSOptions = {
         id: 'serveurs',
         cheminListe: cheminListeServeurs,
         cheminCreation: cheminServeurs,
-        cheminSuppression: (id) => `${cheminServeurs}/${id}`,
+        cheminSuppression: (id) => `${cheminServeurs}/${encodeURIComponent(id)}`,
         champsFiltrables: ['name', 'visibility'],
+        champsFiltrablesExacts: ['visibility'],
         chargerEnregistrements: chargerTousLesServeurs(cheminListeServeurs),
         transformerCreation: ({ name, visibility }) => ({
           nom: name,
@@ -317,8 +347,9 @@ const options: AdminJSOptions = {
         id: 'salons',
         cheminListe: cheminListeServeurs,
         cheminCreation: ({ serverId }) => `${cheminServeurs}/${encodeURIComponent(String(serverId))}/channels`,
-        cheminSuppression: (id) => urlDuService('ROOM_SERVICE_URL', 'http://localhost:3003', `/api/channels/${id}`),
+        cheminSuppression: cheminSuppressionSalon,
         champsFiltrables: ['serverId', 'serverName', 'name', 'access', 'writing'],
+        champsFiltrablesExacts: ['serverId', 'access', 'writing'],
         chargerEnregistrements: chargerTousLesSalons(cheminListeServeurs, cheminServeurs),
         validerCreation: ({ serverId }) => {
           if (typeof serverId !== 'string' || !serverId.trim()) {
@@ -404,11 +435,12 @@ const options: AdminJSOptions = {
           : cheminMessages),
         cheminSuppression: (id, message) => (typeof message?.channelId === 'string'
           ? cheminSuppressionMessageDeSalon(message.channelId, id)
-          : urlDuService('MESSAGE_SERVICE_URL', 'http://localhost:3004', `/api/messages/admin/${id}`)),
+          : cheminSuppressionMessagePrive(id)),
         suppressionDependanteEnregistrement: true,
         champsFiltrables: [
           'messageType', 'recipientId', 'senderId', 'serverId', 'serverName', 'channelId', 'channelName',
         ],
+        champsFiltrablesExacts: ['messageType', 'recipientId', 'senderId', 'serverId', 'channelId'],
         chargerEnregistrements: chargerTousLesMessages(
           cheminMessages,
           cheminMessagesDeSalon,
@@ -431,7 +463,6 @@ const options: AdminJSOptions = {
             throw new ValidationError({}, { message: 'Choisissez soit un destinataire, soit un salon.' });
           }
         },
-        verifierCreation: true,
         champs: [
           { path: 'id', type: 'uuid', isId: true },
           { path: 'messageType', type: 'string', isSortable: true },

@@ -21,9 +21,9 @@ type ConfigurationRessourceDistante = {
   suppressionDependanteEnregistrement?: boolean;
   champs: ChampRessource[];
   champsFiltrables: string[];
+  champsFiltrablesExacts?: string[];
   transformerCreation?: (parametres: Record<string, unknown>) => Record<string, unknown>;
   validerCreation?: (parametres: Record<string, unknown>) => void;
-  verifierCreation?: boolean;
   transformerLecture?: (enregistrement: Record<string, unknown>) => Record<string, unknown>;
   transformerApercu?: (enregistrement: Record<string, unknown>) => Record<string, unknown>;
   chargerEnregistrements?: ChargeurEnregistrements;
@@ -150,11 +150,6 @@ export class RessourceApiDistante extends BaseResource {
 
     this.invaliderCache();
     if (!enregistrement.id) throw new Error('Le service n a pas retourne l identifiant de l element cree.');
-    if (this.configuration.verifierCreation) {
-      const enregistrements = await this.chargerEnregistrements(contexte);
-      const estCree = enregistrements.some((element) => String(element.id) === String(enregistrement.id));
-      if (!estCree) throw new Error('Le message n a pas ete confirme par le service.');
-    }
     return this.transformerLecture(enregistrement);
   }
 
@@ -279,7 +274,7 @@ export class RessourceApiDistante extends BaseResource {
       const valeurEnregistrement = RessourceApiDistante.normaliserValeur(champ, enregistrement[champ]);
       const valeurFiltre = RessourceApiDistante.normaliserValeur(champ, valeur.value);
 
-      return champ === 'id'
+      return champ === 'id' || this.configuration.champsFiltrablesExacts?.includes(champ)
         ? valeurEnregistrement === valeurFiltre
         : valeurEnregistrement.includes(valeurFiltre);
     }));

@@ -119,12 +119,12 @@ describe('Point d entree de l application', () => {
     });
 
     const secretCookieDuplique = 'secret-cookie-de-test-de-plus-de-32-caracteres';
+    process.env.NODE_ENV = 'production';
     process.env.COOKIE_SECRET = secretCookieDuplique;
     process.env.SESSION_SECRET = secretCookieDuplique;
     try {
-      await demarrerApplication();
-      const optionsSession = construireRouteur.mock.calls[1][3] as { secret: string };
-      expect(optionsSession.secret).not.toBe(secretCookieDuplique);
+      await expect(demarrerApplication()).rejects.toThrow('SESSION_SECRET doit etre defini');
+      expect(construireRouteur).toHaveBeenCalledTimes(1);
     } finally {
       if (secretInitial === undefined) delete process.env.COOKIE_SECRET;
       else process.env.COOKIE_SECRET = secretInitial;
@@ -151,10 +151,34 @@ describe('Point d entree de l application', () => {
     }
   });
 
+  it('exige un SESSION_SECRET independant en production', async () => {
+    const cookieInitial = process.env.COOKIE_SECRET;
+    const sessionInitial = process.env.SESSION_SECRET;
+    const environnementInitial = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    process.env.COOKIE_SECRET = 'cookie-secret-production-de-plus-de-32-caracteres';
+    delete process.env.SESSION_SECRET;
+    const creerApplication = jest.spyOn(NestFactory, 'create');
+
+    try {
+      await expect(demarrerApplication()).rejects.toThrow('SESSION_SECRET doit etre defini');
+      expect(creerApplication).not.toHaveBeenCalled();
+    } finally {
+      if (cookieInitial === undefined) delete process.env.COOKIE_SECRET;
+      else process.env.COOKIE_SECRET = cookieInitial;
+      if (sessionInitial === undefined) delete process.env.SESSION_SECRET;
+      else process.env.SESSION_SECRET = sessionInitial;
+      if (environnementInitial === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = environnementInitial;
+    }
+  });
+
   it('genere une cle locale au lieu de reutiliser le secret public de developpement', async () => {
     const secretInitial = process.env.COOKIE_SECRET;
+    const sessionInitial = process.env.SESSION_SECRET;
     const environnementInitial = process.env.NODE_ENV;
     process.env.COOKIE_SECRET = 'dashboard_cookie_secret_for_local_development';
+    delete process.env.SESSION_SECRET;
     process.env.NODE_ENV = 'development';
     construireRouteur.mockReturnValue('routeur-admin');
     jest.spyOn(NestFactory, 'create').mockResolvedValue({
@@ -167,13 +191,18 @@ describe('Point d entree de l application', () => {
     } finally {
       if (secretInitial === undefined) delete process.env.COOKIE_SECRET;
       else process.env.COOKIE_SECRET = secretInitial;
+      if (sessionInitial === undefined) delete process.env.SESSION_SECRET;
+      else process.env.SESSION_SECRET = sessionInitial;
       if (environnementInitial === undefined) delete process.env.NODE_ENV;
       else process.env.NODE_ENV = environnementInitial;
     }
 
-    const [, optionsAuthentification] = construireRouteur.mock.calls[0];
+    const [, optionsAuthentification, , optionsSession] = construireRouteur.mock.calls[0];
     const motDePasseCookie = (optionsAuthentification as { cookiePassword: string }).cookiePassword;
+    const secretSession = (optionsSession as { secret: string }).secret;
     expect(motDePasseCookie).not.toBe('dashboard_cookie_secret_for_local_development');
     expect(motDePasseCookie).toHaveLength(64);
+    expect(secretSession).toHaveLength(64);
+    expect(secretSession).not.toBe(motDePasseCookie);
   });
 });

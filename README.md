@@ -19,8 +19,9 @@ PORT=3000
 ```
 
 En production, `COOKIE_SECRET` doit etre un secret aleatoire d au moins 32 caracteres.
-`SESSION_SECRET` est facultatif; s il est absent, une cle distincte est derivee de
-`COOKIE_SECRET`.
+`SESSION_SECRET` doit aussi etre un secret aleatoire distinct d au moins 32 caracteres.
+En developpement local, les deux secrets sont generes separement si les variables
+sont absentes.
 
 3. Démarrer le serveur :
 
@@ -67,12 +68,16 @@ dont le binaire natif est requis par le bundler AdminJS. Le Dockerfile autorise
 
 ### Limites connues
 
-Le dashboard charge les messages de chaque salon séparément. La suppression d un message charge aussi les enregistrements pour retrouver son salon. Les API actuelles n offrent pas de lecture groupée ni de recherche directe commune par identifiant; réduire ces chargements demande une évolution compatible de Message-Service.
+Le dashboard charge les messages de chaque salon séparément, par lots d au plus
+cinq salons simultanement. La suppression d un message charge aussi les
+enregistrements pour retrouver son salon. Les API actuelles n offrent pas de
+lecture groupée ni de recherche directe commune par identifiant; réduire ces
+chargements demande une évolution compatible de Message-Service.
 
 Les listes réutilisent leurs résultats pendant une seconde afin d éviter de
-refaire le même chargement pour `count` puis `find`. La confirmation de création
-et la suppression d un message recherchent encore dans les enregistrements
-chargés; une API propriétaire de lecture par identifiant éviterait ce parcours.
+refaire le même chargement pour `count` puis `find`. La suppression d un message
+recherche encore son salon dans les enregistrements chargés; une API propriétaire
+de lecture par identifiant éviterait ce parcours.
 
 ## Configuration
 
