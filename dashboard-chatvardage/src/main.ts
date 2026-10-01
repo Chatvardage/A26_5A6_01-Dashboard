@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 
 import AdminJS from 'adminjs';
 import AdminJSExpress from '@adminjs/express';
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 
 import options from './admin/options.js';
@@ -37,6 +38,9 @@ export async function authentifierAdministrateur(courriel: string, motDePasse: s
 }
 
 export async function demarrerApplication() {
+  if (!process.env.NODE_ENV) {
+    Logger.warn('NODE_ENV absent; les secrets aleatoires locaux seront regeneres au redemarrage.', 'Dashboard');
+  }
   const valeurSecreteLocale = 'dashboard_cookie_secret_for_local_development';
   const secretCookieConfigure = process.env.COOKIE_SECRET;
   const estDeveloppementLocal = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';

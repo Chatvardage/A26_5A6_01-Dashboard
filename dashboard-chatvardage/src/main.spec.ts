@@ -1,4 +1,5 @@
 import { jest } from '@jest/globals';
+import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 
 const construireRouteur = jest.fn();
@@ -18,7 +19,7 @@ describe('Point d entree de l application', () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
-        jeton: 'jeton-admin',
+        jeton: 'header.payload.signature',
         utilisateur: {
           id: 'admin-1', pseudo: 'Eva', courriel: 'eva@example.test', role: 'admin',
         },
@@ -27,7 +28,7 @@ describe('Point d entree de l application', () => {
 
     await expect(authentifierAdministrateur('eva@example.test', 'mot-de-passe'))
       .resolves.toEqual({
-        id: 'admin-1', email: 'eva@example.test', title: 'Eva', jeton: 'jeton-admin',
+        id: 'admin-1', email: 'eva@example.test', title: 'Eva', jeton: 'header.payload.signature',
       });
     expect(fetchMock).toHaveBeenCalledWith('http://localhost:3001/api/auth/login', {
       method: 'POST',
@@ -42,7 +43,7 @@ describe('Point d entree de l application', () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
-        jeton: 'jeton-utilisateur',
+        jeton: 'user.header.signature',
         utilisateur: {
           id: 'utilisateur-1', pseudo: 'Alex', courriel: 'alex@example.test', role: 'user',
         },
@@ -69,7 +70,7 @@ describe('Point d entree de l application', () => {
     jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
-        jeton: 'jeton-admin',
+        jeton: 'header.payload.signature',
         utilisateur: {
           id: 'admin-1', pseudo: 'Eva', courriel: 'eva@example.test', role: 'admin',
         },
@@ -173,13 +174,14 @@ describe('Point d entree de l application', () => {
     }
   });
 
-  it('genere une cle locale au lieu de reutiliser le secret public de developpement', async () => {
+  it('avertit si NODE_ENV est absent et genere deux cles locales independantes', async () => {
     const secretInitial = process.env.COOKIE_SECRET;
     const sessionInitial = process.env.SESSION_SECRET;
     const environnementInitial = process.env.NODE_ENV;
     process.env.COOKIE_SECRET = 'dashboard_cookie_secret_for_local_development';
     delete process.env.SESSION_SECRET;
-    process.env.NODE_ENV = 'development';
+    delete process.env.NODE_ENV;
+    const avertir = jest.spyOn(Logger, 'warn').mockImplementation(() => undefined);
     construireRouteur.mockReturnValue('routeur-admin');
     jest.spyOn(NestFactory, 'create').mockResolvedValue({
       getHttpAdapter: () => ({ getInstance: () => ({ use: jest.fn() }) }),
@@ -200,6 +202,10 @@ describe('Point d entree de l application', () => {
     const [, optionsAuthentification, , optionsSession] = construireRouteur.mock.calls[0];
     const motDePasseCookie = (optionsAuthentification as { cookiePassword: string }).cookiePassword;
     const secretSession = (optionsSession as { secret: string }).secret;
+    expect(avertir).toHaveBeenCalledWith(
+      expect.stringContaining('NODE_ENV absent'),
+      'Dashboard',
+    );
     expect(motDePasseCookie).not.toBe('dashboard_cookie_secret_for_local_development');
     expect(motDePasseCookie).toHaveLength(64);
     expect(secretSession).toHaveLength(64);

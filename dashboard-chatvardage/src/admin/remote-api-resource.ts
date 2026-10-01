@@ -34,6 +34,7 @@ type FiltreAdminJS = {
 };
 
 const dureeCacheLectureMs = 1000;
+const motifJetonJwt = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 
 type ErreurApiDistante = Error & { statut: number };
 
@@ -222,7 +223,7 @@ export class RessourceApiDistante extends BaseResource {
     const jeton = (contexte as { currentAdmin?: { jeton?: string } } | undefined)
       ?.currentAdmin?.jeton;
 
-    if (typeof jeton !== 'string' || !/^[-A-Za-z0-9._~+/]+=*$/.test(jeton)) {
+    if (typeof jeton !== 'string' || jeton.length < 10 || !motifJetonJwt.test(jeton)) {
       throw new Error('Session administrateur invalide. Reconnectez-vous.');
     }
 
