@@ -68,11 +68,21 @@ export function resoudreSecrets(environnement: NodeJS.ProcessEnv = process.env) 
   return { secretCookie, secretSession };
 }
 
+// Une chaine non numerique serait prise par Node pour un chemin de socket Unix, sans erreur.
+export function resoudrePort(valeur: string | undefined = process.env.PORT): number {
+  const port = Number(valeur ?? 3000);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`PORT invalide : "${valeur}".`);
+  }
+  return port;
+}
+
 export async function demarrerApplication() {
   if (!process.env.NODE_ENV) {
     Logger.warn('NODE_ENV absent; les secrets aleatoires locaux seront regeneres au redemarrage.', 'Dashboard');
   }
   const { secretCookie, secretSession } = resoudreSecrets();
+  const port = resoudrePort();
   const application = await NestFactory.create(ModuleApplication);
   const estProduction = process.env.NODE_ENV === 'production';
   // getInstance() est l'application Express : @nestjs/platform-express est l'adaptateur requis ici.
@@ -103,7 +113,7 @@ export async function demarrerApplication() {
     );
 
   application.getHttpAdapter().getInstance().use(administration.options.rootPath, routeur);
-  await application.listen(process.env.PORT ?? 3000);
+  await application.listen(port);
 }
 
 /* istanbul ignore next -- the production entry point would open a real server during Jest. */

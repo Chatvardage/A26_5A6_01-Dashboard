@@ -38,7 +38,7 @@ jobs:
         run: npm audit --omit=dev --audit-level=critical
 
       - name: Lint
-        run: npx eslint "src/**/*.ts"
+        run: npx eslint "src/**/*.ts" --max-warnings=0
 
       - name: Verification des types
         run: npx tsc --noEmit -p tsconfig.json --incremental false

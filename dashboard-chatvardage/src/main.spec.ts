@@ -7,7 +7,9 @@ jest.unstable_mockModule('@adminjs/express', () => ({
   default: { buildAuthenticatedRouter: construireRouteur },
 }));
 
-const { authentifierAdministrateur, demarrerApplication, resoudreSecrets } = await import('./main.js');
+const {
+  authentifierAdministrateur, demarrerApplication, resoudrePort, resoudreSecrets,
+} = await import('./main.js');
 
 describe('Point d entree de l application', () => {
   afterEach(() => {
@@ -245,6 +247,15 @@ describe('Point d entree de l application', () => {
     })).toThrow('SESSION_SECRET doit etre defini');
     expect(resoudreSecrets({ NODE_ENV: 'development', SESSION_SECRET: 'dashboard_cookie_secret_for_local_development' })
       .secretSession).not.toBe('dashboard_cookie_secret_for_local_development');
+  });
+
+  it('valide le port avant de demarrer', () => {
+    expect(resoudrePort(undefined)).toBe(3000);
+    expect(resoudrePort('3002')).toBe(3002);
+    expect(() => resoudrePort('abc')).toThrow('PORT invalide : "abc".');
+    expect(() => resoudrePort('0')).toThrow('PORT invalide');
+    expect(() => resoudrePort('65536')).toThrow('PORT invalide');
+    expect(() => resoudrePort('30.5')).toThrow('PORT invalide');
   });
 
   it('genere des secrets aleatoires en mode test et refuse un secret configure trop court', () => {
