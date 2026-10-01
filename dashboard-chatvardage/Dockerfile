@@ -5,13 +5,10 @@ RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
-# Explicitly allow npm post-install scripts (needed for esbuild binary installation)
-ENV NPM_CONFIG_IGNORE_SCRIPTS=false
-
 # Copy package files
 COPY package*.json ./
 
-# Clean install to ensure exact lockfile dependencies and complete postinstall scripts
+# npm ci runs postinstall scripts by default; esbuild needs them to install its binary.
 RUN npm ci
 
 # Copy application source
@@ -31,8 +28,7 @@ FROM node:20-alpine AS runtime
 WORKDIR /app
 
 ENV NODE_ENV=production \
-	ADMIN_JS_SKIP_BUNDLE=true \
-	NPM_CONFIG_IGNORE_SCRIPTS=false
+	ADMIN_JS_SKIP_BUNDLE=true
 
 COPY package*.json ./
 

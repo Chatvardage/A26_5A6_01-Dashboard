@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 
 import { RessourceApiDistante } from './remote-api-resource.js';
+import { normaliserChampUtilisateur } from './resources/utilisateurs.js';
 
 const jetonTest = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbi0xIn0.c2lnbmF0dXJlLWRlLXRlc3Q';
 const autreJetonTest = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbi0yIn0.YXV0cmUtc2lnbmF0dXJlLXRlc3Q';
@@ -476,6 +477,7 @@ describe('RessourceApiDistante', () => {
       cheminCreation: 'http://auth.test/api/users',
       cheminSuppression: (id) => `http://auth.test/api/users/${id}`,
       champsFiltrables: ['role'],
+      normaliserChamp: normaliserChampUtilisateur,
       champs: [{ path: 'id', type: 'uuid', isId: true }, { path: 'role', type: 'string' }],
     });
     const contexte = contexteAdmin;

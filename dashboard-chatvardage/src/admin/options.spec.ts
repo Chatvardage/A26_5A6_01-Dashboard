@@ -4,6 +4,7 @@ import { Logger } from '@nestjs/common';
 import { composantDestinationMessage } from './component-loader.js';
 import options, { optionsRessource } from './options.js';
 import { RessourceApiDistante } from './remote-api-resource.js';
+import { limitePagesServeurs } from './resources/commun.js';
 
 const jetonTest = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbi0xIn0.c2lnbmF0dXJlLWRlLXRlc3Q';
 const autreJetonTest = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbi0yIn0.YXV0cmUtc2lnbmF0dXJlLXRlc3Q';
@@ -280,6 +281,56 @@ describe('Options AdminJS', () => {
       expect.stringContaining('Erreur reseau non standard'),
       'DashboardAdmin',
     );
+  });
+
+  it('normalise les roles des utilisateurs a la lecture et au filtrage', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [
+        { id: 'u-1', role: 'ADMINISTRATEUR' },
+        { id: 'u-2', role: 'utilisateur' },
+        { id: 'u-3' },
+      ],
+    } as Response);
+    const utilisateurs = (options.resources ?? [])[0].resource as RessourceApiDistante;
+
+    const enregistrements = await utilisateurs.find({}, {}, contexteAdmin);
+    const filtres = await utilisateurs.find({ filters: { role: { value: 'Utilisateur' } } }, {}, contexteAdmin);
+
+    expect(enregistrements.map((enregistrement) => enregistrement.params.role)).toEqual(['admin', 'user', undefined]);
+    expect(filtres.map((enregistrement) => enregistrement.params.id)).toEqual(['u-2']);
+    await expect(utilisateurs.find({ filters: { pseudo: { value: 'absent' } } }, {}, contexteAdmin))
+      .resolves.toHaveLength(0);
+  });
+
+  it('laisse sans apercu un message dont le contenu n est pas du texte', async () => {
+    jest.spyOn(global, 'fetch').mockImplementation(async (input) => ({
+      ok: true,
+      status: 200,
+      json: async () => (String(input).endsWith('/api/messages/admin')
+        ? [{ id: 'prive-1', content: null }]
+        : { serveurs: [], suivant: null }),
+    } as Response));
+    const messages = (options.resources ?? [])[3].resource as RessourceApiDistante;
+
+    const [message] = await messages.find({}, {}, { currentAdmin: { jeton: `${jetonTest}apercu` } });
+
+    expect(message.params.apercu).toBeUndefined();
+  });
+
+  it('plafonne la pagination si le service renvoie toujours une page suivante', async () => {
+    const journaliser = jest.spyOn(Logger, 'warn').mockImplementation(() => undefined);
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ serveurs: [], suivant: 100 }),
+    } as Response));
+    const serveurs = (options.resources ?? [])[1].resource as RessourceApiDistante;
+
+    await expect(serveurs.find({}, {}, contexteAdmin)).resolves.toHaveLength(0);
+    expect(fetchMock).toHaveBeenCalledTimes(limitePagesServeurs);
+    expect(journaliser).toHaveBeenCalledWith(expect.stringContaining('Pagination interrompue'), 'DashboardAdmin');
   });
 
   it('arrete la pagination si le service omet le champ suivant', async () => {

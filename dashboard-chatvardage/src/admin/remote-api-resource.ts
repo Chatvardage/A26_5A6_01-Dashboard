@@ -22,6 +22,7 @@ type ConfigurationRessourceDistante = {
   champs: ChampRessource[];
   champsFiltrables: string[];
   champsFiltrablesExacts?: string[];
+  normaliserChamp?: (champ: string, valeur: string) => string;
   transformerCreation?: (parametres: Record<string, unknown>) => Record<string, unknown>;
   validerCreation?: (parametres: Record<string, unknown>) => void;
   transformerLecture?: (enregistrement: Record<string, unknown>) => Record<string, unknown>;
@@ -162,6 +163,7 @@ export class RessourceApiDistante extends BaseResource {
   }
 
   async delete(identifiant: string, contexte?: unknown): Promise<void> {
+    // Une copie du cache (<= 1 s) suffit : les champs servant au chemin ne changent pas apres creation.
     const enregistrement = this.configuration.suppressionDependanteEnregistrement
       ? (await this.chargerEnregistrements(contexte)).find(
         (element) => String(element.id) === identifiant,
@@ -259,6 +261,7 @@ export class RessourceApiDistante extends BaseResource {
     if (!tri?.sortBy) return enregistrements;
 
     const multiplicateur = tri.direction === 'desc' ? -1 : 1;
+    // Copie requise : sort() trie sur place et le tableau recu peut etre celui du cache partage.
     return [...enregistrements].sort((gauche, droite) => String(gauche[tri.sortBy!])
       .localeCompare(String(droite[tri.sortBy!])) * multiplicateur);
   }
@@ -273,8 +276,8 @@ export class RessourceApiDistante extends BaseResource {
     if (!criteres.length) return enregistrements;
 
     return enregistrements.filter((enregistrement) => criteres.every(([champ, valeur]) => {
-      const valeurEnregistrement = RessourceApiDistante.normaliserValeur(champ, enregistrement[champ]);
-      const valeurFiltre = RessourceApiDistante.normaliserValeur(champ, valeur.value);
+      const valeurEnregistrement = this.normaliserValeur(champ, enregistrement[champ]);
+      const valeurFiltre = this.normaliserValeur(champ, valeur.value);
 
       return champ === 'id' || this.configuration.champsFiltrablesExacts?.includes(champ)
         ? valeurEnregistrement === valeurFiltre
@@ -282,24 +285,13 @@ export class RessourceApiDistante extends BaseResource {
     }));
   }
 
-  private static normaliserValeur(champ: string, valeur: unknown): string {
-    if (champ === 'role' && typeof valeur === 'string') return RessourceApiDistante.normaliserRole(valeur);
-    return String(valeur ?? '').trim().toLowerCase();
-  }
-
-  private static normaliserRole(role: string): string {
-    const valeur = role.trim().toLowerCase();
-    if (valeur === 'user' || valeur === 'utilisateur') return 'user';
-    if (valeur === 'admin' || valeur === 'administrateur') return 'admin';
-    return valeur;
+  private normaliserValeur(champ: string, valeur: unknown): string {
+    const valeurNormalisee = String(valeur ?? '').trim().toLowerCase();
+    return this.configuration.normaliserChamp?.(champ, valeurNormalisee) ?? valeurNormalisee;
   }
 
   private transformerLecture(enregistrement: Record<string, unknown>): Record<string, unknown> {
     const enregistrementTransforme = this.configuration.transformerLecture?.(enregistrement) ?? enregistrement;
-    const avecRoleNormalise = typeof enregistrementTransforme.role === 'string'
-      ? { ...enregistrementTransforme, role: RessourceApiDistante.normaliserRole(enregistrementTransforme.role) }
-      : enregistrementTransforme;
-
-    return this.configuration.transformerApercu?.(avecRoleNormalise) ?? avecRoleNormalise;
+    return this.configuration.transformerApercu?.(enregistrementTransforme) ?? enregistrementTransforme;
   }
 }

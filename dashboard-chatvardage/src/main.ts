@@ -33,7 +33,9 @@ export async function authentifierAdministrateur(courriel: string, motDePasse: s
       title: connexion.utilisateur.pseudo,
       jeton: connexion.jeton,
     };
-  } catch {
+  } catch (erreur) {
+    const detail = erreur instanceof Error ? erreur.message : String(erreur);
+    Logger.warn(`Echec de l'appel au service Authentification: ${detail}`, 'Dashboard');
     return null;
   }
 }

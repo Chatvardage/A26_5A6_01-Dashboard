@@ -50,10 +50,15 @@ describe('Point d entree de l application', () => {
       }),
     } as Response);
     fetchMock.mockRejectedValueOnce(new Error('Service indisponible'));
+    fetchMock.mockRejectedValueOnce('DNS introuvable');
+    const journaliser = jest.spyOn(Logger, 'warn').mockImplementation(() => undefined);
 
     await expect(authentifierAdministrateur('alex@example.test', 'mot-de-passe')).resolves.toBeNull();
     await expect(authentifierAdministrateur('alex@example.test', 'mot-de-passe')).resolves.toBeNull();
     await expect(authentifierAdministrateur('alex@example.test', 'mot-de-passe')).resolves.toBeNull();
+    await expect(authentifierAdministrateur('alex@example.test', 'mot-de-passe')).resolves.toBeNull();
+    expect(journaliser).toHaveBeenCalledWith(expect.stringContaining('Service indisponible'), 'Dashboard');
+    expect(journaliser).toHaveBeenCalledWith(expect.stringContaining('DNS introuvable'), 'Dashboard');
   });
 
   it('monte le routeur AdminJS et ecoute le port configure', async () => {
