@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verifier:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard-chatvardage
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: dashboard-chatvardage/.nvmrc
+          cache: npm
+          cache-dependency-path: dashboard-chatvardage/package-lock.json
+
+      - name: Installer les dependances
+        run: npm ci
+
+      # Seuil "critical" : les avis restants sont dans les bundles precompiles d'adminjs 7.8.17
+      # (derniere version), sans correctif publie. Voir README, "Limites connues".
+      - name: Audit des dependances de production
+        run: npm audit --omit=dev --audit-level=critical
+
+      - name: Lint
+        run: npx eslint "src/**/*.ts"
+
+      - name: Verification des types
+        run: npx tsc --noEmit -p tsconfig.json --incremental false
+
+      - name: Tests et couverture
+        run: npm run test:cov
+
+      - name: Build
+        run: npm run build
+
+      - name: Generation des composants AdminJS
+        run: node scripts/generate-adminjs.mjs

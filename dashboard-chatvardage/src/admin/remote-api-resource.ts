@@ -58,7 +58,7 @@ export class RessourceApiDistante extends BaseResource {
   private readonly proprietes: BaseProperty[];
 
   // Une entree par jeton : chaque session admin garde son propre resultat.
-  private readonly caches = new Map<string | undefined, EntreeCache>();
+  private readonly caches = new Map<string, EntreeCache>();
 
   constructor(private readonly configuration: ConfigurationRessourceDistante) {
     super();
@@ -154,7 +154,7 @@ export class RessourceApiDistante extends BaseResource {
       throw new ValidationError(erreursParChamp, correspondanceChamp ? undefined : { message });
     }
 
-    this.invaliderCache();
+    this.viderCache();
     if (!enregistrement.id) throw new Error('Le service n a pas retourne l identifiant de l element cree.');
     return this.transformerLecture(enregistrement);
   }
@@ -180,12 +180,11 @@ export class RessourceApiDistante extends BaseResource {
       contexte,
       { method: 'DELETE' },
     );
-    this.invaliderCache();
+    this.viderCache();
   }
 
   private async chargerEnregistrements(contexte?: unknown): Promise<Record<string, unknown>[]> {
-    const jeton = (contexte as { currentAdmin?: { jeton?: string } } | undefined)
-      ?.currentAdmin?.jeton;
+    const jeton = RessourceApiDistante.jetonSession(contexte);
     const maintenant = Date.now();
     this.caches.forEach((entree, cle) => {
       if (entree.expireLe <= maintenant) this.caches.delete(cle);
@@ -208,7 +207,7 @@ export class RessourceApiDistante extends BaseResource {
     })();
     const cacheNouveau: EntreeCache = { expireLe: Number.POSITIVE_INFINITY, promesse };
     // Map conserve l'ordre d'insertion : la premiere cle est la plus ancienne.
-    if (this.caches.size >= tailleMaximaleCache) this.caches.delete(this.caches.keys().next().value);
+    if (this.caches.size >= tailleMaximaleCache) this.caches.delete(this.caches.keys().next().value as string);
     this.caches.set(jeton, cacheNouveau);
 
     try {
@@ -223,8 +222,18 @@ export class RessourceApiDistante extends BaseResource {
     }
   }
 
-  private invaliderCache(): void {
+  viderCache(): void {
     this.caches.clear();
+  }
+
+  private static jetonSession(contexte: unknown): string {
+    const jeton = (contexte as { currentAdmin?: { jeton?: string } } | undefined)
+      ?.currentAdmin?.jeton;
+
+    if (typeof jeton !== 'string' || jeton.length < longueurMinimaleJeton || !motifJetonJwt.test(jeton)) {
+      throw new Error('Session administrateur invalide. Reconnectez-vous.');
+    }
+    return jeton;
   }
 
   private static async requete<T>(
@@ -232,12 +241,7 @@ export class RessourceApiDistante extends BaseResource {
     contexte: unknown,
     optionsRequete: RequestInit = {},
   ): Promise<T> {
-    const jeton = (contexte as { currentAdmin?: { jeton?: string } } | undefined)
-      ?.currentAdmin?.jeton;
-
-    if (typeof jeton !== 'string' || jeton.length < longueurMinimaleJeton || !motifJetonJwt.test(jeton)) {
-      throw new Error('Session administrateur invalide. Reconnectez-vous.');
-    }
+    const jeton = RessourceApiDistante.jetonSession(contexte);
 
     const reponse = await fetch(chemin, {
       ...optionsRequete,

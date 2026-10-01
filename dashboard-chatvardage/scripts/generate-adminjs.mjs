@@ -7,6 +7,11 @@ if (!existsSync(new URL('../dist/admin/options.js', import.meta.url))) {
   process.exit(1);
 }
 
-const { default: options } = await import('../dist/admin/options.js');
-
-await new AdminJS(options).initialize();
+try {
+  const { default: options } = await import('../dist/admin/options.js');
+  if (!options?.resources) throw new Error('dist/admin/options.js n exporte pas d options AdminJS valides.');
+  await new AdminJS(options).initialize();
+} catch (erreur) {
+  console.error('Generation des composants AdminJS impossible :', erreur);
+  process.exit(1);
+}

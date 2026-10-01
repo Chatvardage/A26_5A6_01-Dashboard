@@ -93,6 +93,7 @@ export const ressourceMessages = {
     }),
     transformerApercu: transformerApercuMessage,
     validerCreation: ({ recipientId, channelId }) => {
+      // Exactement une destination; un channelId vide ('') compte comme absent (message prive).
       if (Boolean(recipientId) === Boolean(channelId)) {
         throw new ValidationError({}, { message: 'Choisissez soit un destinataire, soit un salon.' });
       }

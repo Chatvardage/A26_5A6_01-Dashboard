@@ -45,7 +45,11 @@ const chargerPageServeurs = async (
     }
     // Sequentiel par necessite : seule la reponse d'une page donne le decalage de la suivante.
     // eslint-disable-next-line no-await-in-loop
-    const page = await requete<PageServeurs>(`${chemin}?decalage=${decalage}&limite=100`);
+    const page: Partial<PageServeurs> = await requete<PageServeurs>(`${chemin}?decalage=${decalage}&limite=100`);
+    if (!Array.isArray(page.serveurs)) {
+      Logger.warn(`Reponse inattendue de ${chemin} : champ 'serveurs' absent`, 'DashboardAdmin');
+      break;
+    }
     serveurs.push(...page.serveurs);
     decalage = page.suivant ?? null;
   }

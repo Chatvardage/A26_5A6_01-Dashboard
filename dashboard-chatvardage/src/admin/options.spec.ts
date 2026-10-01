@@ -16,7 +16,7 @@ describe('Options AdminJS', () => {
     jest.restoreAllMocks();
     // Les ressources sont des singletons de module : leur cache par jeton survivrait d'un test a l'autre.
     (options.resources ?? []).forEach((ressource) => {
-      (ressource.resource as unknown as { caches: Map<unknown, unknown> }).caches.clear();
+      (ressource.resource as RessourceApiDistante).viderCache();
     });
   });
 
@@ -322,6 +322,17 @@ describe('Options AdminJS', () => {
 
     expect(sansTexte.params.apercu).toBeUndefined();
     expect(court.params.apercu).toBe('Bonjour salut');
+  });
+
+  it('arrete la pagination si le service renvoie une page sans liste de serveurs', async () => {
+    const journaliser = jest.spyOn(Logger, 'warn').mockImplementation(() => undefined);
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true, status: 200, json: async () => ({ suivant: 100 }),
+    } as Response);
+    const serveurs = (options.resources ?? [])[1].resource as RessourceApiDistante;
+
+    await expect(serveurs.find({}, {}, contexteAdmin)).resolves.toHaveLength(0);
+    expect(journaliser).toHaveBeenCalledWith(expect.stringContaining('champ \'serveurs\' absent'), 'DashboardAdmin');
   });
 
   it('plafonne la pagination si le service renvoie toujours une page suivante', async () => {

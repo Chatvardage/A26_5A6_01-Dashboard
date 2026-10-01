@@ -83,6 +83,15 @@ La liste des serveurs est chargée par pages de 100, jusqu à 50 pages
 (5 000 serveurs). Au-delà, le chargement s arrête avec un avertissement dans
 les journaux : une pagination côté AdminJS serait alors nécessaire.
 
+La CI (`.github/workflows/ci.yml`) exécute `npm audit` au seuil `critical`.
+Les avis restants (`tinymce`, `@tiptap/*`, `react-router`, `uuid`,
+`i18next-http-backend`) viennent tous d `adminjs` 7.8.17 et
+`@adminjs/design-system` 4.1.1, les dernières versions publiées. Ces paquets
+livrent des bundles navigateur déjà compilés : forcer des versions avec
+`overrides` ferait taire `npm audit` sans changer le code servi. Le dashboard
+n utilise pas l éditeur riche (`richtext`), seulement des champs `textarea`.
+`@adminjs/express` est figé à `5.1.0` : surveiller ses avis manuellement.
+
 ## Configuration
 
 Le dashboard utilise les valeurs locales suivantes si les variables ne sont pas
