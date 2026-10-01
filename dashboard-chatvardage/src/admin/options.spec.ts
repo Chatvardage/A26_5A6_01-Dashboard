@@ -146,6 +146,42 @@ describe('Options AdminJS', () => {
     );
   });
 
+  it('ignore un serveur dont le detail est illisible et charge les autres', async () => {
+    const journaliser = jest.spyOn(Logger, 'warn').mockImplementation(() => undefined);
+    jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const chemin = String(input);
+      if (chemin.endsWith('/api/admin/servers?decalage=0&limite=100')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ serveurs: [{ id: 'serveur-1' }, { id: 'supprime' }, { id: 'coupe' }], suivant: null }),
+        } as Response;
+      }
+      if (chemin.endsWith('/api/servers/supprime')) {
+        return { ok: false, status: 404, json: async () => ({ erreur: 'serveur introuvable' }) } as Response;
+      }
+      if (chemin.endsWith('/api/servers/coupe')) {
+        // eslint-disable-next-line prefer-promise-reject-errors
+        return Promise.reject('reseau coupe');
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 'serveur-1', nom: 'Projet', salons: [{ id: 'salon-1', nom: 'general' }] }),
+      } as Response;
+    });
+    const salons = (options.resources ?? [])[2].resource as RessourceApiDistante;
+
+    const enregistrements = await salons.find({}, {}, contexteAdmin);
+
+    expect(enregistrements.map((enregistrement) => enregistrement.params.id)).toEqual(['salon-1']);
+    expect(journaliser).toHaveBeenCalledWith(
+      'Impossible de charger le serveur supprime: serveur introuvable',
+      'DashboardAdmin',
+    );
+    expect(journaliser).toHaveBeenCalledWith('Impossible de charger le serveur coupe: reseau coupe', 'DashboardAdmin');
+  });
+
   it('charge les messages prives et les messages de salon avec leur provenance', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
       const chemin = String(input);

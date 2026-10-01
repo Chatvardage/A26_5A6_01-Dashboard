@@ -23,3 +23,6 @@ Ces points ont été relevés en revue et volontairement non modifiés. Ne pas l
 - **URL des services lues à l'import des modules (`src/admin/resources/*.ts`)** : `import 'dotenv/config'` est la première instruction de `main.ts`, donc le `.env` est chargé avant ces modules.
 - **Pas de contrôle de fraîcheur de `dist/` dans `scripts/generate-adminjs.mjs`** : le script n'est lancé que par le `Dockerfile`, juste après `npm run build`.
 - **Image de base `node:20-alpine` non épinglée par digest** : la reproductibilité bit à bit n'est pas exigée. Le tag reçoit les correctifs de sécurité à chaque reconstruction.
+- **`ADMIN_JS_SKIP_BUNDLE=true` dans le `Dockerfile`** : la variable est bien lue par AdminJS (`node_modules/adminjs/lib/adminjs.js`). En production, elle empêche de reconstruire au démarrage les bundles déjà générés dans `.adminjs/` à l'étape `builder`.
+- **Message de `resoudrePort` qui afficherait `"undefined"`** : ça n'arriverait que si la valeur par défaut `3000` devenait invalide, ce qui est impossible en l'état.
+- **`optionsRessource` à paramètres positionnels (`src/admin/resources/commun.ts`)** : il n'y a que quatre appels, tous couverts par les tests de `options.spec.ts`. Passer à un objet de configuration ne changerait pas le comportement.

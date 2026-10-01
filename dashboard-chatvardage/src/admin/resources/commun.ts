@@ -66,15 +66,22 @@ export const chargerTousLesSalons = (
   cheminListeServeurs: string,
   cheminServeurs: string,
 ): ChargeurEnregistrements => async (requete) => {
+  // Room-Service indisponible : la liste echoue et l'erreur reste visible. Un seul serveur
+  // illisible (ex. supprime entre la liste et le detail) ne bloque pas les autres.
   const serveurs = await chargerTousLesServeurs(cheminListeServeurs)(requete);
-  const details = await chargerParLots(
-    serveurs,
-    (serveur) => requete<Record<string, unknown>>(
-      `${cheminServeurs}/${encodeURIComponent(String(serveur.id))}`,
-    ),
-  );
+  const details = await chargerParLots(serveurs, async (serveur) => {
+    const identifiant = String(serveur.id);
+    try {
+      return await requete<Record<string, unknown>>(`${cheminServeurs}/${encodeURIComponent(identifiant)}`);
+    } catch (erreur) {
+      const detail = erreur instanceof Error ? erreur.message : String(erreur);
+      Logger.warn(`Impossible de charger le serveur ${identifiant}: ${detail}`, 'DashboardAdmin');
+      return null;
+    }
+  });
 
   return details.flatMap((serveur) => {
+    if (!serveur) return [];
     const salons = Array.isArray(serveur.salons) ? serveur.salons : [];
     return salons
       .filter((salon): salon is Record<string, unknown> => typeof salon === 'object' && salon !== null)
