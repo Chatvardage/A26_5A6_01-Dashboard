@@ -5,6 +5,11 @@ import { composantDestinationMessage } from './component-loader.js';
 import options, { optionsRessource } from './options.js';
 import { RessourceApiDistante } from './remote-api-resource.js';
 
+const jetonTest = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbi0xIn0.c2lnbmF0dXJlLWRlLXRlc3Q';
+const autreJetonTest = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbi0yIn0.YXV0cmUtc2lnbmF0dXJlLXRlc3Q';
+const contexteAdmin = { currentAdmin: { jeton: jetonTest } };
+const entetesAdmin = { headers: { Authorization: `Bearer ${jetonTest}` } };
+
 describe('Options AdminJS', () => {
   afterEach(() => {
     jest.restoreAllMocks();
@@ -119,7 +124,7 @@ describe('Options AdminJS', () => {
     const ressources = options.resources ?? [];
     const salons = ressources[2].resource as RessourceApiDistante;
 
-    const enregistrements = await salons.find({}, {}, { currentAdmin: { jeton: 'header.payload.signature' } });
+    const enregistrements = await salons.find({}, {}, contexteAdmin);
 
     expect(enregistrements[0].params).toMatchObject({
       id: 'salon-1',
@@ -132,7 +137,7 @@ describe('Options AdminJS', () => {
     });
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:3003/api/servers/serveur-1',
-      expect.objectContaining({ headers: { Authorization: 'Bearer header.payload.signature' } }),
+      expect.objectContaining(entetesAdmin),
     );
   });
 
@@ -176,7 +181,7 @@ describe('Options AdminJS', () => {
     const ressources = options.resources ?? [];
     const messages = ressources[3].resource as RessourceApiDistante;
 
-    const enregistrements = await messages.find({}, {}, { currentAdmin: { jeton: 'header.payload.signature' } });
+    const enregistrements = await messages.find({}, {}, contexteAdmin);
 
     expect(enregistrements.map((enregistrement) => enregistrement.params)).toEqual([
       expect.objectContaining({
@@ -195,26 +200,26 @@ describe('Options AdminJS', () => {
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:3004/api/messages/rooms/salon-1/history?limit=100',
-      expect.objectContaining({ headers: { Authorization: 'Bearer header.payload.signature' } }),
+      expect.objectContaining(entetesAdmin),
     );
 
     await expect(messages.find(
       { filters: { messageType: { value: 'Salon' } } },
       {},
-      { currentAdmin: { jeton: 'header.payload.signature' } },
+      contexteAdmin,
     )).resolves.toHaveLength(1);
     await expect(messages.find(
       { filters: { messageType: { value: 'Sal' } } },
       {},
-      { currentAdmin: { jeton: 'header.payload.signature' } },
+      contexteAdmin,
     )).resolves.toHaveLength(0);
     await expect(messages.find(
       { filters: { senderId: { value: 'utilisateur-' } } },
       {},
-      { currentAdmin: { jeton: 'header.payload.signature' } },
+      contexteAdmin,
     )).resolves.toHaveLength(0);
 
-    await messages.delete('salon-1-message', { currentAdmin: { jeton: 'header.payload.signature' } });
+    await messages.delete('salon-1-message', contexteAdmin);
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:3004/api/messages/rooms/salon-1/salon-1-message',
       expect.objectContaining({ method: 'DELETE' }),
@@ -262,10 +267,10 @@ describe('Options AdminJS', () => {
     const ressources = options.resources ?? [];
     const messages = ressources[3].resource as RessourceApiDistante;
 
-    await expect(messages.find({}, {}, { currentAdmin: { jeton: 'header.payload.signature' } }))
+    await expect(messages.find({}, {}, contexteAdmin))
       .resolves.toHaveLength(1);
     rejeterSansErreur = true;
-    await expect(messages.find({}, {}, { currentAdmin: { jeton: 'other.header.payload' } }))
+    await expect(messages.find({}, {}, { currentAdmin: { jeton: autreJetonTest } }))
       .resolves.toHaveLength(1);
     expect(journaliser).toHaveBeenCalledWith(
       expect.stringContaining('Impossible de charger les messages du salon salon-1'),
@@ -307,7 +312,7 @@ describe('Options AdminJS', () => {
     const ressources = options.resources ?? [];
     const serveurs = ressources[1].resource as RessourceApiDistante;
 
-    const enregistrements = await serveurs.find({}, {}, { currentAdmin: { jeton: 'header.payload.signature' } });
+    const enregistrements = await serveurs.find({}, {}, contexteAdmin);
 
     expect(enregistrements).toHaveLength(2);
     expect(enregistrements.map((enregistrement) => enregistrement.params)).toEqual([
@@ -316,7 +321,7 @@ describe('Options AdminJS', () => {
     ]);
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:3003/api/admin/servers?decalage=100&limite=100',
-      expect.objectContaining({ headers: { Authorization: 'Bearer header.payload.signature' } }),
+      expect.objectContaining(entetesAdmin),
     );
   });
 
@@ -358,9 +363,7 @@ describe('Options AdminJS', () => {
     const ressources = options.resources ?? [];
     const messages = ressources[3].resource as RessourceApiDistante;
 
-    await expect(messages.find({}, {}, {
-      currentAdmin: { jeton: 'header.payload.signature' },
-    })).resolves.toHaveLength(0);
+    await expect(messages.find({}, {}, contexteAdmin)).resolves.toHaveLength(0);
     expect(maximumRequetesActives).toBe(5);
   });
 
@@ -391,7 +394,7 @@ describe('Options AdminJS', () => {
     const [utilisateurs, serveurs, salons, messages] = ressources.map(
       (ressource) => ressource.resource as RessourceApiDistante,
     );
-    const contexte = { currentAdmin: { jeton: 'header.payload.signature' } };
+    const contexte = contexteAdmin;
 
     await utilisateurs.delete('utilisateur/1', contexte);
     await serveurs.create({ name: 'Public', visibility: 'public' }, contexte);
@@ -455,7 +458,7 @@ describe('Options AdminJS', () => {
     const fetchMock = jest.spyOn(global, 'fetch');
     const ressources = options.resources ?? [];
     const messages = ressources[3].resource as RessourceApiDistante;
-    const contexte = { currentAdmin: { jeton: 'header.payload.signature' } };
+    const contexte = contexteAdmin;
 
     await expect(messages.create({ senderId: 'utilisateur-1', content: 'Bonjour' }, contexte))
       .rejects.toMatchObject({ baseError: { message: 'Choisissez soit un destinataire, soit un salon.' } });
@@ -489,7 +492,7 @@ describe('Options AdminJS', () => {
 
     await messages.create({
       senderId: 'utilisateur-1', recipientId: 'utilisateur-2', channelId: '', content: 'Bonjour',
-    }, { currentAdmin: { jeton: 'header.payload.signature' } });
+    }, contexteAdmin);
 
     expect(fetchMock).toHaveBeenCalledWith(
       'http://localhost:3004/api/messages/admin',
@@ -506,11 +509,10 @@ describe('Options AdminJS', () => {
     const ressources = options.resources ?? [];
     const salons = ressources[2].resource as RessourceApiDistante;
 
-    await expect(salons.create({ name: 'general', access: 'tous', writing: 'tous' }, {
-      currentAdmin: { jeton: 'header.payload.signature' },
-    })).rejects.toMatchObject({
-      propertyErrors: { serverId: { message: 'Le serveur est requis.' } },
-    });
+    await expect(salons.create({ name: 'general', access: 'tous', writing: 'tous' }, contexteAdmin))
+      .rejects.toMatchObject({
+        propertyErrors: { serverId: { message: 'Le serveur est requis.' } },
+      });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

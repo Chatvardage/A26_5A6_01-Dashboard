@@ -7,7 +7,7 @@ jest.unstable_mockModule('@adminjs/express', () => ({
   default: { buildAuthenticatedRouter: construireRouteur },
 }));
 
-const { authentifierAdministrateur, demarrerApplication } = await import('./main.js');
+const { authentifierAdministrateur, demarrerApplication, resoudreSecrets } = await import('./main.js');
 
 describe('Point d entree de l application', () => {
   afterEach(() => {
@@ -210,5 +210,21 @@ describe('Point d entree de l application', () => {
     expect(motDePasseCookie).toHaveLength(64);
     expect(secretSession).toHaveLength(64);
     expect(secretSession).not.toBe(motDePasseCookie);
+  });
+
+  it('conserve les secrets configures en developpement local', () => {
+    const cookie = 'cookie-secret-local-de-plus-de-32-caracteres';
+    const session = 'session-secret-local-de-plus-de-32-caracteres';
+
+    expect(resoudreSecrets({ NODE_ENV: 'development', COOKIE_SECRET: cookie, SESSION_SECRET: session }))
+      .toEqual({ secretCookie: cookie, secretSession: session });
+  });
+
+  it('refuse la valeur locale de l Infra en production', () => {
+    expect(() => resoudreSecrets({
+      NODE_ENV: 'production',
+      COOKIE_SECRET: 'dashboard_cookie_secret_for_local_development',
+      SESSION_SECRET: 'session-secret-production-de-plus-de-32-caracteres',
+    })).toThrow('COOKIE_SECRET doit contenir');
   });
 });

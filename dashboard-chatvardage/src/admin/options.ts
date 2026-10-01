@@ -276,8 +276,7 @@ const options: AdminJSOptions = {
           mot_de_passe: {
             label: 'Mot de passe',
             isRequired: true,
-            props: { minLength: 8, maxLength: 128 },
-            description: 'Entre 8 et 128 caracteres.',
+            description: 'Entre 8 et 128 caracteres (valide par le service Authentification).',
           },
           role: {
             label: 'Role',

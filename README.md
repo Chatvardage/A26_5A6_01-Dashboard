@@ -10,13 +10,13 @@ Base backend NestJS du tableau de bord de ChatVardage. Le projet fournit une API
 npm --prefix dashboard-chatvardage install
 ```
 
-2. Créer un fichier `.env` dans `dashboard-chatvardage` :
+2. Créer le fichier `.env` à partir du modèle, puis y générer `COOKIE_SECRET` et `SESSION_SECRET` (deux valeurs distinctes, `openssl rand -hex 32`) :
 
-```env
-COOKIE_SECRET=remplacer-par-un-secret-aleatoire-de-32-caracteres-minimum
-SESSION_SECRET=
-PORT=3000
+```bash
+cp dashboard-chatvardage/.env.example dashboard-chatvardage/.env
 ```
+
+`.env` est chargé par `dotenv` au tout début de `main.ts`, avant la lecture des secrets.
 
 En production, `COOKIE_SECRET` doit etre un secret aleatoire d au moins 32 caracteres.
 `SESSION_SECRET` doit aussi etre un secret aleatoire distinct d au moins 32 caracteres.

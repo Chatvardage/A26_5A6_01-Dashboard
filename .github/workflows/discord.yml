@@ -34,36 +34,16 @@ jobs:
             exit 0
           fi
 
+          # printf: le contenu des variables n'est jamais interprete comme delimiteur ni format.
           if [ "$EVENT_NAME" = "push" ]; then
-            MESSAGE=$(cat <<EOF
-          🚀 **Nouveau push sur develop !**
-
-          👤 Auteur: $ACTOR
-          📁 Repository: $GITHUB_REPOSITORY
-          💬 Commit: $COMMIT_MSG
-          🔗 $COMMIT_URL
-          EOF
-          )
-
+            MESSAGE=$(printf '🚀 **Nouveau push sur develop !**\n\n👤 Auteur: %s\n📁 Repository: %s\n💬 Commit: %s\n🔗 %s' \
+              "$ACTOR" "$GITHUB_REPOSITORY" "$COMMIT_MSG" "$COMMIT_URL")
           elif [ "$PR_MERGED" = "true" ]; then
-            MESSAGE=$(cat <<EOF
-          ✅ **Pull Request fusionnée dans develop !**
-
-          📌 Titre: $PR_TITLE
-          👤 Auteur: $ACTOR
-          🔗 $PR_URL
-          EOF
-          )
-
+            MESSAGE=$(printf '✅ **Pull Request fusionnée dans develop !**\n\n📌 Titre: %s\n👤 Auteur: %s\n🔗 %s' \
+              "$PR_TITLE" "$ACTOR" "$PR_URL")
           else
-            MESSAGE=$(cat <<EOF
-          🔀 **Pull Request**
-
-          📌 Titre: $PR_TITLE
-          👤 Auteur: $ACTOR
-          🔗 $PR_URL
-          EOF
-          )
+            MESSAGE=$(printf '🔀 **Pull Request**\n\n📌 Titre: %s\n👤 Auteur: %s\n🔗 %s' \
+              "$PR_TITLE" "$ACTOR" "$PR_URL")
           fi
 
           curl --fail --silent --show-error \

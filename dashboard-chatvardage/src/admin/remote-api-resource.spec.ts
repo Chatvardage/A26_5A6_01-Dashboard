@@ -2,6 +2,10 @@ import { jest } from '@jest/globals';
 
 import { RessourceApiDistante } from './remote-api-resource.js';
 
+const jetonTest = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbi0xIn0.c2lnbmF0dXJlLWRlLXRlc3Q';
+const autreJetonTest = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbi0yIn0.YXV0cmUtc2lnbmF0dXJlLXRlc3Q';
+const contexteAdmin = { currentAdmin: { jeton: jetonTest } };
+
 describe('RessourceApiDistante', () => {
   afterEach(() => {
     jest.restoreAllMocks();
@@ -25,14 +29,14 @@ describe('RessourceApiDistante', () => {
 
     await expect(ressource.create(
       { senderId: 'user-1', recipientId: 'user-2', content: 'Bonjour' },
-      { currentAdmin: { jeton: 'header.payload.signature' } },
+      contexteAdmin,
     )).resolves.toEqual({ id: 'message-1', content: 'Bonjour', apercu: 'Bonjour' });
 
     expect(fetchMock).toHaveBeenCalledWith('http://messages.test/api/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: 'Bearer header.payload.signature',
+        Authorization: `Bearer ${jetonTest}`,
       },
       body: JSON.stringify({ senderId: 'user-1', recipientId: 'user-2', content: 'Bonjour' }),
     });
@@ -56,7 +60,7 @@ describe('RessourceApiDistante', () => {
       champs: [{ path: 'id', type: 'uuid', isId: true }, { path: 'senderId', type: 'uuid' }],
     });
     const filtre = { filters: { senderId: { value: 'utilisateur-3' }, id: { value: 'message-1' } } };
-    const contexte = { currentAdmin: { jeton: 'header.payload.signature' } };
+    const contexte = contexteAdmin;
 
     await expect(ressource.count(filtre, contexte)).resolves.toBe(1);
     await expect(ressource.find(filtre, {}, contexte)).resolves.toHaveLength(1);
@@ -84,7 +88,7 @@ describe('RessourceApiDistante', () => {
 
     await expect(ressource.create(
       { pseudo: 'eva', mot_de_passe: 'court' },
-      { currentAdmin: { jeton: 'header.payload.signature' } },
+      contexteAdmin,
     )).rejects.toMatchObject({
       statusCode: 400,
       propertyErrors: {
@@ -110,7 +114,7 @@ describe('RessourceApiDistante', () => {
 
     await expect(ressource.create(
       { pseudo: 'eva' },
-      { currentAdmin: { jeton: 'header.payload.signature' } },
+      contexteAdmin,
     )).rejects.toThrow('Service indisponible depuis 12:30');
   });
 
@@ -134,7 +138,7 @@ describe('RessourceApiDistante', () => {
       champsFiltrables: [],
       champs: [{ path: 'id', type: 'uuid', isId: true }],
     });
-    const contexte = { currentAdmin: { jeton: 'header.payload.signature' } };
+    const contexte = contexteAdmin;
 
     await expect(ressource.create({ pseudo: 'Eva' }, contexte)).rejects.toMatchObject({
       baseError: { message: 'champInconnu: valeur invalide' },
@@ -164,7 +168,7 @@ describe('RessourceApiDistante', () => {
       champsFiltrables: [],
       champs: [{ path: 'id', type: 'uuid', isId: true }],
     });
-    const contexte = { currentAdmin: { jeton: 'header.payload.signature' } };
+    const contexte = contexteAdmin;
 
     await expect(ressource.find({}, {}, contexte)).rejects.toThrow('Maintenance');
     await expect(ressource.find({}, {}, contexte)).rejects.toThrow('Le service distant a retourne 502.');
@@ -183,7 +187,7 @@ describe('RessourceApiDistante', () => {
 
     await expect(ressource.create(
       { pseudo: 'eva' },
-      { currentAdmin: { jeton: 'header.payload.signature' } },
+      contexteAdmin,
     )).rejects.toBeInstanceOf(TypeError);
   });
 
@@ -204,7 +208,7 @@ describe('RessourceApiDistante', () => {
 
     await expect(ressource.create(
       { pseudo: 'eva' },
-      { currentAdmin: { jeton: 'expired.header.signature' } },
+      { currentAdmin: { jeton: autreJetonTest } },
     )).rejects.toThrow('La session administrateur a expire. Reconnectez-vous.');
   });
 
@@ -231,7 +235,7 @@ describe('RessourceApiDistante', () => {
       champsFiltrables: [],
       champs: [{ path: 'id', type: 'uuid', isId: true }],
     });
-    const contexte = { currentAdmin: { jeton: 'header.payload.signature' } };
+    const contexte = contexteAdmin;
 
     await expect(ressource.count({}, contexte)).resolves.toBe(1);
     await ressource.create({ pseudo: 'Alex' }, contexte);
@@ -254,7 +258,7 @@ describe('RessourceApiDistante', () => {
       champs: [{ path: 'id', type: 'uuid', isId: true }],
     });
 
-    await expect(ressource.find({}, {}, { currentAdmin: { jeton: 'expired.header.signature' } }))
+    await expect(ressource.find({}, {}, { currentAdmin: { jeton: autreJetonTest } }))
       .rejects.toThrow('La session administrateur a expire. Reconnectez-vous.');
   });
 
@@ -276,7 +280,7 @@ describe('RessourceApiDistante', () => {
 
     await expect(ressource.create(
       { senderId: 'utilisateur-1', recipientId: 'utilisateur-2', content: 'Bonjour' },
-      { currentAdmin: { jeton: 'header.payload.signature' } },
+      contexteAdmin,
     )).resolves.toMatchObject({ id: 'message-1', senderId: 'utilisateur-1' });
 
     expect(fetchMock).toHaveBeenCalledWith('http://messages.test/api/messages/admin', expect.objectContaining({
@@ -314,7 +318,7 @@ describe('RessourceApiDistante', () => {
       ],
     });
 
-    const [message] = await ressource.find({}, {}, { currentAdmin: { jeton: 'header.payload.signature' } });
+    const [message] = await ressource.find({}, {}, contexteAdmin);
 
     expect(message.params).toMatchObject({
       content: 'Bonjour\n  tout le monde',
@@ -348,7 +352,7 @@ describe('RessourceApiDistante', () => {
       {
         serverId: 'serveur-1', name: 'general', access: 'tous', writing: 'moderateurs',
       },
-      { currentAdmin: { jeton: 'header.payload.signature' } },
+      contexteAdmin,
     )).resolves.toMatchObject({ id: 'salon-1' });
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -389,7 +393,7 @@ describe('RessourceApiDistante', () => {
       ],
     });
 
-    const [salon] = await ressource.find({}, {}, { currentAdmin: { jeton: 'header.payload.signature' } });
+    const [salon] = await ressource.find({}, {}, contexteAdmin);
 
     expect(salon.params).toMatchObject({
       id: 'salon-1',
@@ -420,11 +424,11 @@ describe('RessourceApiDistante', () => {
       champs: [{ path: 'id', type: 'uuid', isId: true }],
     });
 
-    await expect(ressource.find({}, {}, { currentAdmin: { jeton: 'header.payload.signature' } }))
+    await expect(ressource.find({}, {}, contexteAdmin))
       .resolves.toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledWith(
       'http://salons.test/api/admin/servers?limite=100',
-      expect.objectContaining({ headers: { Authorization: 'Bearer header.payload.signature' } }),
+      expect.objectContaining({ headers: { Authorization: `Bearer ${jetonTest}` } }),
     );
   });
 
@@ -452,7 +456,7 @@ describe('RessourceApiDistante', () => {
 
     await expect(ressource.create(
       { recipientId: 'utilisateur-1', content: 'Bonjour' },
-      { currentAdmin: { jeton: 'header.payload.signature' } },
+      contexteAdmin,
     )).rejects.toThrow('Le service n a pas retourne l identifiant de l element cree.');
   });
 
@@ -474,7 +478,7 @@ describe('RessourceApiDistante', () => {
       champsFiltrables: ['role'],
       champs: [{ path: 'id', type: 'uuid', isId: true }, { path: 'role', type: 'string' }],
     });
-    const contexte = { currentAdmin: { jeton: 'header.payload.signature' } };
+    const contexte = contexteAdmin;
 
     await expect(ressource.count({ filters: { role: { value: 'user' } } }, contexte)).resolves.toBe(1);
     await expect(ressource.count({ filters: { role: { value: 'admin' } } }, contexte)).resolves.toBe(1);
@@ -502,7 +506,7 @@ describe('RessourceApiDistante', () => {
         { path: 'nom', type: 'string' },
       ],
     });
-    const contexte = { currentAdmin: { jeton: 'header.payload.signature' } };
+    const contexte = contexteAdmin;
 
     const enregistrements = await ressource.find({}, {
       offset: 1,
@@ -537,11 +541,11 @@ describe('RessourceApiDistante', () => {
     });
 
     await expect(ressource.delete('serveur-1', {
-      currentAdmin: { jeton: 'header.payload.signature' },
+      currentAdmin: { jeton: jetonTest },
     })).resolves.toBeUndefined();
     expect(fetchMock).toHaveBeenCalledWith('http://serveurs.test/api/servers/serveur-1', {
       method: 'DELETE',
-      headers: { Authorization: 'Bearer header.payload.signature' },
+      headers: { Authorization: `Bearer ${jetonTest}` },
     });
     await expect(ressource.update()).rejects.toThrow('La modification est geree par le service proprietaire.');
   });
@@ -559,7 +563,7 @@ describe('RessourceApiDistante', () => {
       champs: [{ path: 'id', type: 'uuid', isId: true }],
     });
 
-    await expect(ressource.delete('message-absent', { currentAdmin: { jeton: 'header.payload.signature' } }))
+    await expect(ressource.delete('message-absent', contexteAdmin))
       .rejects.toThrow('Element introuvable pour la suppression.');
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -591,7 +595,7 @@ describe('RessourceApiDistante', () => {
     });
 
     await expect(ressource.find({}, {}, {
-      currentAdmin: { jeton: 'header.payload.signature\r\nX-Injected: true' },
+      currentAdmin: { jeton: `${jetonTest}\r\nX-Injected: true` },
     })).rejects.toThrow('Session administrateur invalide. Reconnectez-vous.');
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -607,7 +611,7 @@ describe('RessourceApiDistante', () => {
       champs: [{ path: 'id', type: 'uuid', isId: true }],
     });
 
-    await expect(ressource.find({}, {}, { currentAdmin: { jeton: 'header,payload.signature' } }))
+    await expect(ressource.find({}, {}, { currentAdmin: { jeton: jetonTest.replace('.', ',') } }))
       .rejects.toThrow('Session administrateur invalide. Reconnectez-vous.');
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -624,6 +628,8 @@ describe('RessourceApiDistante', () => {
     });
 
     await expect(ressource.find({}, {}, { currentAdmin: { jeton: 'a.b.c' } }))
+      .rejects.toThrow('Session administrateur invalide. Reconnectez-vous.');
+    await expect(ressource.find({}, {}, { currentAdmin: { jeton: 'header.payload.signature' } }))
       .rejects.toThrow('Session administrateur invalide. Reconnectez-vous.');
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -650,7 +656,7 @@ describe('RessourceApiDistante', () => {
       champs: [{ path: 'id', type: 'uuid', isId: true }],
     });
 
-    const [message] = await ressource.find({}, {}, { currentAdmin: { jeton: 'header.payload.signature' } });
+    const [message] = await ressource.find({}, {}, contexteAdmin);
 
     expect(message.params.apercu).toBe(`${'a'.repeat(120)}...`);
   });
@@ -686,14 +692,14 @@ describe('RessourceApiDistante', () => {
       champsFiltrables: ['id', 'pseudo'],
       champs: [{ path: 'id', type: 'uuid', isId: true }],
     });
-    const contexte = { currentAdmin: { jeton: 'header.payload.signature' } };
+    const contexte = contexteAdmin;
 
     await expect(ressource.find({ filters: { pseudo: { value: 12 } } }, {}, contexte))
       .resolves.toHaveLength(2);
     await expect(ressource.find(
       { filters: { id: { value: 'utilisateur-2' } } },
       {},
-      { currentAdmin: { jeton: 'other.header.payload' } },
+      { currentAdmin: { jeton: autreJetonTest } },
     ))
       .resolves.toHaveLength(1);
     await expect(ressource.create({ pseudo: 'Eva' }, contexte))
@@ -717,7 +723,7 @@ describe('RessourceApiDistante', () => {
       champsFiltrables: ['pseudo'],
       champs: [{ path: 'id', type: 'uuid', isId: true }],
     });
-    const contexte = { currentAdmin: { jeton: 'header.payload.signature' } };
+    const contexte = contexteAdmin;
 
     await expect(ressource.find({ filters: { pseudo: { value: 'absent' } } }, {}, contexte))
       .resolves.toHaveLength(0);

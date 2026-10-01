@@ -21,6 +21,7 @@
     "@nestjs/core": "^12.0.1",
     "@nestjs/platform-express": "^12.0.1",
     "adminjs": "^7.8.17",
+    "dotenv": "^17.4.2",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1"
   },

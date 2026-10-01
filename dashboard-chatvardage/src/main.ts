@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { randomBytes } from 'node:crypto';
 
 import AdminJS from 'adminjs';
@@ -37,23 +38,25 @@ export async function authentifierAdministrateur(courriel: string, motDePasse: s
   }
 }
 
-export async function demarrerApplication() {
-  if (!process.env.NODE_ENV) {
-    Logger.warn('NODE_ENV absent; les secrets aleatoires locaux seront regeneres au redemarrage.', 'Dashboard');
-  }
-  const valeurSecreteLocale = 'dashboard_cookie_secret_for_local_development';
-  const secretCookieConfigure = process.env.COOKIE_SECRET;
-  const estDeveloppementLocal = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
-  const secretCookie = estDeveloppementLocal
-    && (!secretCookieConfigure || secretCookieConfigure === valeurSecreteLocale)
+// Valeur par defaut fournie par l'Infra (.env.example); jamais acceptee hors developpement.
+const valeurSecreteLocale = 'dashboard_cookie_secret_for_local_development';
+
+export function resoudreSecrets(environnement: NodeJS.ProcessEnv = process.env) {
+  const mode = environnement.NODE_ENV;
+  const estDeveloppementLocal = !mode || mode === 'development';
+  const estTest = mode === 'test';
+  const cookieConfigure = environnement.COOKIE_SECRET;
+  const sessionConfigure = environnement.SESSION_SECRET;
+
+  const secretCookie = estDeveloppementLocal && (!cookieConfigure || cookieConfigure === valeurSecreteLocale)
     ? randomBytes(32).toString('hex')
-    : secretCookieConfigure ?? valeurSecreteLocale;
-  const secretSessionConfigure = process.env.SESSION_SECRET;
-  const secretSession = (estDeveloppementLocal || process.env.NODE_ENV === 'test')
-    && (!secretSessionConfigure || secretSessionConfigure === secretCookie)
+    : cookieConfigure ?? valeurSecreteLocale;
+  const secretSession = (estDeveloppementLocal || estTest)
+    && (!sessionConfigure || sessionConfigure === secretCookie)
     ? randomBytes(32).toString('hex')
-    : secretSessionConfigure ?? '';
-  if (process.env.NODE_ENV !== 'test') {
+    : sessionConfigure ?? '';
+
+  if (!estTest) {
     if (secretCookie.length < 32 || secretCookie === valeurSecreteLocale) {
       throw new Error('COOKIE_SECRET doit contenir au moins 32 caracteres aleatoires hors tests.');
     }
@@ -61,6 +64,15 @@ export async function demarrerApplication() {
       throw new Error('SESSION_SECRET doit etre defini avec une valeur aleatoire distincte de COOKIE_SECRET.');
     }
   }
+
+  return { secretCookie, secretSession };
+}
+
+export async function demarrerApplication() {
+  if (!process.env.NODE_ENV) {
+    Logger.warn('NODE_ENV absent; les secrets aleatoires locaux seront regeneres au redemarrage.', 'Dashboard');
+  }
+  const { secretCookie, secretSession } = resoudreSecrets();
   const application = await NestFactory.create(ModuleApplication);
   const administration = new AdminJS(options);
   const routeur = (AdminJSExpress as unknown as typeof import('@adminjs/express').default)
