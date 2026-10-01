@@ -5,11 +5,19 @@ node_modules/
 dist/
 tsconfig.build.tsbuildinfo
 
+# test coverage
+coverage/
+
 # adminjs generated files
 .adminjs/
 
 # env
 .env
+.env.*
+!.env.example
+
+# local tooling
+.kilo/
 
 # logs
 npm-debug.log*

@@ -1,5 +1,14 @@
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { ComponentLoader } from 'adminjs';
 
-const componentLoader = new ComponentLoader();
+const chargeurComposants = new ComponentLoader();
+const dossierCourant = dirname(fileURLToPath(import.meta.url));
 
-export default componentLoader;
+export const composantDestinationMessage = chargeurComposants.add(
+  'DestinationMessage',
+  join(dossierCourant, 'message-destination-property'),
+);
+
+export default chargeurComposants;
