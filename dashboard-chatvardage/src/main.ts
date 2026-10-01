@@ -52,14 +52,15 @@ export function resoudreSecrets(environnement: NodeJS.ProcessEnv = process.env) 
   const secretCookie = peutGenerer && (!cookieConfigure || cookieConfigure === valeurSecreteLocale)
     ? randomBytes(32).toString('hex')
     : cookieConfigure ?? '';
-  const secretSession = peutGenerer && (!sessionConfigure || sessionConfigure === secretCookie)
+  const secretSession = peutGenerer
+    && (!sessionConfigure || sessionConfigure === secretCookie || sessionConfigure === valeurSecreteLocale)
     ? randomBytes(32).toString('hex')
     : sessionConfigure ?? '';
 
   if (secretCookie.length < 32 || secretCookie === valeurSecreteLocale) {
     throw new Error('COOKIE_SECRET doit contenir au moins 32 caracteres aleatoires.');
   }
-  if (secretSession.length < 32 || secretSession === secretCookie) {
+  if (secretSession.length < 32 || secretSession === secretCookie || secretSession === valeurSecreteLocale) {
     throw new Error('SESSION_SECRET doit etre defini avec une valeur aleatoire distincte de COOKIE_SECRET.');
   }
 

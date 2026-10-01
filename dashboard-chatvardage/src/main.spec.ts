@@ -236,6 +236,16 @@ describe('Point d entree de l application', () => {
     })).toThrow('COOKIE_SECRET doit contenir');
   });
 
+  it('refuse aussi la valeur locale de l Infra comme SESSION_SECRET en production', () => {
+    expect(() => resoudreSecrets({
+      NODE_ENV: 'production',
+      COOKIE_SECRET: 'cookie-secret-production-de-plus-de-32-caracteres',
+      SESSION_SECRET: 'dashboard_cookie_secret_for_local_development',
+    })).toThrow('SESSION_SECRET doit etre defini');
+    expect(resoudreSecrets({ NODE_ENV: 'development', SESSION_SECRET: 'dashboard_cookie_secret_for_local_development' })
+      .secretSession).not.toBe('dashboard_cookie_secret_for_local_development');
+  });
+
   it('genere des secrets aleatoires en mode test et refuse un secret configure trop court', () => {
     const { secretCookie, secretSession } = resoudreSecrets({ NODE_ENV: 'test' });
 

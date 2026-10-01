@@ -40,4 +40,7 @@ COPY --from=builder /app/.adminjs ./.adminjs
 
 EXPOSE 3000
 
+# Utilisateur non privilegie fourni par l image node (fichiers en lecture seule suffisent).
+USER node
+
 CMD ["node", "dist/main.js"]
