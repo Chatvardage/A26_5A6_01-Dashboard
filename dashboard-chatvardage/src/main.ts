@@ -104,4 +104,9 @@ export async function demarrerApplication() {
 }
 
 /* istanbul ignore next -- the production entry point would open a real server during Jest. */
-if (process.env.NODE_ENV !== 'test') demarrerApplication();
+if (process.env.NODE_ENV !== 'test') {
+  demarrerApplication().catch((erreur: unknown) => {
+    Logger.error(erreur instanceof Error ? erreur.stack : String(erreur), 'Dashboard');
+    process.exitCode = 1;
+  });
+}

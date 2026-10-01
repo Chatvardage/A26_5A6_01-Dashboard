@@ -40,6 +40,7 @@ type EntreeCache = {
 };
 
 const dureeCacheLectureMs = 1000;
+const tailleMaximaleCache = 100;
 const longueurMinimaleJeton = 40;
 const motifJetonJwt = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 
@@ -206,6 +207,8 @@ export class RessourceApiDistante extends BaseResource {
       return enregistrements.map((enregistrement) => this.transformerLecture(enregistrement));
     })();
     const cacheNouveau: EntreeCache = { expireLe: Number.POSITIVE_INFINITY, promesse };
+    // Map conserve l'ordre d'insertion : la premiere cle est la plus ancienne.
+    if (this.caches.size >= tailleMaximaleCache) this.caches.delete(this.caches.keys().next().value);
     this.caches.set(jeton, cacheNouveau);
 
     try {
@@ -269,6 +272,7 @@ export class RessourceApiDistante extends BaseResource {
     const champ = tri.sortBy;
     const multiplicateur = tri.direction === 'desc' ? -1 : 1;
     // Copie requise : sort() trie sur place et le tableau recu peut etre celui du cache partage.
+    // Les valeurs absentes valent '' : premieres en ordre croissant, dernieres en decroissant.
     return [...enregistrements].sort((gauche, droite) => String(gauche[champ] ?? '')
       .localeCompare(String(droite[champ] ?? '')) * multiplicateur);
   }

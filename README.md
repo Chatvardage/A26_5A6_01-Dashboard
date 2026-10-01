@@ -79,6 +79,10 @@ refaire le même chargement pour `count` puis `find`. La suppression d un messag
 recherche encore son salon dans les enregistrements chargés; une API propriétaire
 de lecture par identifiant éviterait ce parcours.
 
+La liste des serveurs est chargée par pages de 100, jusqu à 50 pages
+(5 000 serveurs). Au-delà, le chargement s arrête avec un avertissement dans
+les journaux : une pagination côté AdminJS serait alors nécessaire.
+
 ## Configuration
 
 Le dashboard utilise les valeurs locales suivantes si les variables ne sont pas

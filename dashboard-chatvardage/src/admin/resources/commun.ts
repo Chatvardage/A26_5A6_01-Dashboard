@@ -14,7 +14,8 @@ type PageServeurs = {
 };
 
 const tailleLotRequetes = 5;
-export const limitePagesServeurs = 500;
+// 50 pages x 100 = 5 000 serveurs au plus en memoire par chargement.
+export const limitePagesServeurs = 50;
 
 export const chargerParLots = async <T, R>(
   elements: T[],

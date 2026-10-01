@@ -2,7 +2,7 @@ import { Controller, Get, Redirect } from '@nestjs/common';
 
 @Controller()
 export class ControleurApplication {
-  // NestJS exige une methode d'instance, meme sans etat.
+  // Handler sans etat : class-methods-use-this ne s'applique pas a une route NestJS.
   // eslint-disable-next-line class-methods-use-this
   @Get()
   @Redirect('/administration', 302)

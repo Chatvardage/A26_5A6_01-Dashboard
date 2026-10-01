@@ -737,6 +737,30 @@ describe('RessourceApiDistante', () => {
     expect(tries.map((enregistrement) => enregistrement.params.id)).toEqual(['2', '4', '3', '1']);
   });
 
+  it('evince le jeton le plus ancien au-dela de cent entrees en cache', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async () => ({
+      ok: true, status: 200, json: async () => [],
+    } as Response));
+    const ressource = new RessourceApiDistante({
+      id: 'utilisateurs',
+      cheminListe: 'http://auth.test/api/users',
+      cheminCreation: 'http://auth.test/api/users',
+      cheminSuppression: (id) => `http://auth.test/api/users/${id}`,
+      champsFiltrables: [],
+      champs: [{ path: 'id', type: 'uuid', isId: true }],
+    });
+    const contexte = (index: number) => ({ currentAdmin: { jeton: `${jetonTest}${index}` } });
+
+    for (let index = 0; index <= 100; index += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await ressource.count({}, contexte(index));
+    }
+    await ressource.count({}, contexte(100));
+    await ressource.count({}, contexte(0));
+
+    expect(fetchMock).toHaveBeenCalledTimes(102);
+  });
+
   it('gere les valeurs nulles, le tri descendant et les erreurs non standard', async () => {
     const fetchMock = jest.spyOn(global, 'fetch');
     const enregistrements = [
