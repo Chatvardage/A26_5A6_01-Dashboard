@@ -34,6 +34,7 @@ describe('Point d entree de l application', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifiant: 'eva@example.test', mot_de_passe: 'mot-de-passe' }),
+      signal: expect.any(AbortSignal),
     });
   });
 

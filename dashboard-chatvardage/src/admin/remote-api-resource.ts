@@ -42,6 +42,8 @@ type EntreeCache = {
 const dureeCacheLectureMs = 1000;
 const tailleMaximaleCache = 100;
 const longueurMinimaleJeton = 40;
+// Un service bloque ne doit pas retenir la page AdminJS indefiniment.
+const delaiMaximalRequeteMs = 10_000;
 const motifJetonJwt = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 
 type ErreurApiDistante = Error & { statut: number };
@@ -244,6 +246,7 @@ export class RessourceApiDistante extends BaseResource {
     const jeton = RessourceApiDistante.jetonSession(contexte);
 
     const reponse = await fetch(chemin, {
+      signal: AbortSignal.timeout(delaiMaximalRequeteMs),
       ...optionsRequete,
       headers: {
         ...optionsRequete.headers,

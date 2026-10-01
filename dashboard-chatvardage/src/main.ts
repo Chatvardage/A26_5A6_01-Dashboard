@@ -16,6 +16,7 @@ export async function authentifierAdministrateur(courriel: string, motDePasse: s
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifiant: courriel, mot_de_passe: motDePasse }),
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!reponse.ok) return null;

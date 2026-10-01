@@ -40,6 +40,7 @@ describe('RessourceApiDistante', () => {
         Authorization: `Bearer ${jetonTest}`,
       },
       body: JSON.stringify({ senderId: 'user-1', recipientId: 'user-2', content: 'Bonjour' }),
+      signal: expect.any(AbortSignal),
     });
   });
 
@@ -548,6 +549,7 @@ describe('RessourceApiDistante', () => {
     expect(fetchMock).toHaveBeenCalledWith('http://serveurs.test/api/servers/serveur-1', {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${jetonTest}` },
+      signal: expect.any(AbortSignal),
     });
     await expect(ressource.update()).rejects.toThrow('La modification est geree par le service proprietaire.');
   });
