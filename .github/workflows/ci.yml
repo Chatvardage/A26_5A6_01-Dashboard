@@ -37,11 +37,11 @@ jobs:
       - name: Installer les dependances
         run: npm ci
 
-      # Seuil "critical" : les avis restants (tiptap 2.1.13, epingle par
-      # @adminjs/design-system d'adminjs 7.8.17) n'ont pas de correctif compatible.
-      # Voir README, "Limites connues".
-      - name: Audit des dependances de production
-        run: npm audit --omit=dev --audit-level=critical
+      # Seuil "high", dependances de dev comprises : les avis restants sont
+      # moderes (tiptap 2.1.13, epingle par @adminjs/design-system d'adminjs
+      # 7.8.17) et n'ont pas de correctif compatible. Voir README, "Limites connues".
+      - name: Audit des dependances
+        run: npm audit --audit-level=high
 
       - name: Lint
         run: npx eslint "src/**/*.ts" --max-warnings=0

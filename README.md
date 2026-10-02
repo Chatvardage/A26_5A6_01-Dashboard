@@ -32,19 +32,23 @@ node scripts/generate-adminjs.mjs
 docker build -t chatvardage-dashboard:local .
 ```
 
-Le CI sur PR et push vers `develop`/`main` exécute installation reproductible, audit au seuil critique, lint, types, couverture, build, génération AdminJS et construction Docker.
+Le CI sur PR et push vers `develop`/`main` exécute installation reproductible, audit au seuil `high` (dépendances de dev comprises), lint, types, couverture, build, génération AdminJS et construction Docker.
 
 Une création refusée (400/409/422, notamment un courriel déjà utilisé) garde le formulaire et affiche l’erreur. Une promotion admin échouée après création annonce explicitement que le compte standard existe déjà. Ces parcours sont testés avec l’action AdminJS réelle.
 
 ## Limites connues
 
-`npm audit --omit=dev` signale des vulnérabilités de sévérité modérée dans
+`npm audit` signale des vulnérabilités de sévérité modérée dans
 `@tiptap/core` et `@tiptap/extension-link` 2.1.13, épinglés par
 `@adminjs/design-system` 4.1.1 (dépendance d'`adminjs` 7.8.17, dernière
 version). Le correctif exige tiptap 3.30.4 ou plus, incompatible avec cette
 version du design system ; npm ne propose qu'une rétrogradation vers
-`adminjs` 6. Le CI audite donc au seuil `critical` jusqu'à une mise à jour
+`adminjs` 6. Le CI audite donc au seuil `high` jusqu'à une mise à jour
 d'AdminJS.
+
+`@typescript-eslint/typescript-estree` 6.x épingle `minimatch` 9.0.3
+(vulnérable, sévérité haute) : un `override` dans `package.json` impose
+`minimatch` ^9.0.9, même API. À retirer lors du passage à typescript-eslint 8.
 
 ## Documentation
 

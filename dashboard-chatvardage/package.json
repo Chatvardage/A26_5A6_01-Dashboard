@@ -63,6 +63,9 @@
     },
     "@adminjs/design-system": {
       "tinymce": "^8.0.0"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^9.0.9"
     }
   },
   "name": "dashboard-chatvardage",
