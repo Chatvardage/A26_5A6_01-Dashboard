@@ -4,7 +4,7 @@ Application web NestJS/Express et AdminJS, déployée dans un conteneur séparé
 
 ## Démarrage complet recommandé
 
-Suivre le [README Infra](https://github.com/Chatvardage/A26_5A6_01-Infra/blob/develop/README.md), créer le premier compte admin puis ouvrir **http://localhost:3002/administration**. Depuis Infra, `./scripts/healthcheck.sh` vérifie aussi ce Dashboard.
+Suivre le [README Infra](https://github.com/Chatvardage/A26_5A6_01-Infra/blob/main/README.md), créer le premier compte admin puis ouvrir **http://localhost:3002/administration**. Depuis Infra, `./scripts/healthcheck.sh` vérifie aussi ce Dashboard.
 
 ## Développement local
 
@@ -38,7 +38,7 @@ Une création refusée (400/409/422, notamment un courriel déjà utilisé) gard
 
 ## Documentation
 
-- [Guide détaillé et limites](https://github.com/Chatvardage/A26_5A6_01-Infra/blob/develop/docs/services/Dashboard.md)
-- [Architecture et flux internes](https://github.com/Chatvardage/A26_5A6_01-Infra/blob/develop/docs/architecture.md)
-- [Validation et permissions](https://github.com/Chatvardage/A26_5A6_01-Infra/blob/develop/docs/validation.md)
+- [Guide détaillé et limites](https://github.com/Chatvardage/A26_5A6_01-Infra/blob/main/docs/services/Dashboard.md)
+- [Architecture et flux internes](https://github.com/Chatvardage/A26_5A6_01-Infra/blob/main/docs/architecture.md)
+- [Validation et permissions](https://github.com/Chatvardage/A26_5A6_01-Infra/blob/main/docs/validation.md)
 - [Consignes de contribution](AGENTS.md)
