@@ -34,7 +34,8 @@ ENV NODE_ENV=production \
 
 COPY package*.json ./
 
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev \
+    && npm install --no-save "@rollup/rollup-linux-x64-musl@$(node -p "require('./node_modules/rollup/package.json').version")"
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/.adminjs ./.adminjs
