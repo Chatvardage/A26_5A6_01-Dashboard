@@ -11,8 +11,22 @@ import {
 const urlMessages = (chemin: string): string => urlDuService('MESSAGE_SERVICE_URL', 'http://localhost:3004', chemin);
 
 const cheminMessages = urlMessages('/api/messages/admin');
-const cheminMessagesDeSalon = (channelId: string): string => urlMessages(
-  `/api/messages/rooms/${encodeURIComponent(channelId)}/history?limit=100`,
+
+// Message-Service renvoie au plus 100 messages par page (parametre `limit`).
+const taillePageMessages = 100;
+// 50 pages x 100 = 5 000 messages au plus par source (DM, chaque salon) et par chargement.
+export const limitePagesMessages = 50;
+
+const avecCurseur = (chemin: string, curseur?: string): string => (
+  curseur ? `${chemin}&cursor=${encodeURIComponent(curseur)}` : chemin
+);
+const cheminPageMessagesPrives = (curseur?: string): string => avecCurseur(
+  urlMessages(`/api/messages/admin?limit=${taillePageMessages}`),
+  curseur,
+);
+const cheminPageMessagesDeSalon = (channelId: string) => (curseur?: string): string => avecCurseur(
+  urlMessages(`/api/messages/rooms/${encodeURIComponent(channelId)}/history?limit=${taillePageMessages}`),
+  curseur,
 );
 const cheminCreationMessagesDeSalon = (channelId: string): string => urlMessages(
   `/api/messages/rooms/${encodeURIComponent(channelId)}/admin`,
@@ -24,17 +38,55 @@ const cheminSuppressionMessagePrive = (id: string): string => urlMessages(
   `/api/messages/admin/${encodeURIComponent(id)}`,
 );
 
+type Message = Record<string, unknown>;
+
+// Suit les curseurs de Message-Service jusqu'a une page incomplete. `curseurSuivant` donne
+// le plus ancien message de la page : le dernier pour les DM (du plus recent au plus ancien),
+// le premier pour un salon (ordre chronologique).
+const chargerPagesParCurseur = async (
+  requete: Parameters<ChargeurEnregistrements>[0],
+  cheminPage: (curseur?: string) => string,
+  curseurSuivant: (page: Message[]) => Message,
+): Promise<Message[]> => {
+  const messages: Message[] = [];
+  let curseur: string | undefined;
+
+  for (let pages = 0; ; pages += 1) {
+    if (pages >= limitePagesMessages) {
+      Logger.warn(`Pagination interrompue apres ${limitePagesMessages} pages pour ${cheminPage()}`, 'DashboardAdmin');
+      break;
+    }
+    // Sequentiel par necessite : seule la page courante donne le curseur de la suivante.
+    // eslint-disable-next-line no-await-in-loop
+    const page = await requete<unknown>(cheminPage(curseur));
+    if (!Array.isArray(page)) {
+      Logger.warn(`Reponse inattendue de ${cheminPage()} : liste de messages absente`, 'DashboardAdmin');
+      break;
+    }
+    messages.push(...page);
+    const suivant = page.length === taillePageMessages ? curseurSuivant(page).id : undefined;
+    if (typeof suivant !== 'string') break;
+    curseur = suivant;
+  }
+
+  return messages;
+};
+
 // Limite connue (README) : une requete d'historique par salon; une route d'agregation
 // dans Message-Service remplacerait ce chargement.
 const chargerTousLesMessages: ChargeurEnregistrements = async (requete) => {
   const [messagesPrives, salons] = await Promise.all([
-    requete<Record<string, unknown>[]>(cheminMessages),
+    chargerPagesParCurseur(requete, cheminPageMessagesPrives, (page) => page[page.length - 1]),
     chargerTousLesSalons(cheminListeServeurs, cheminServeurs)(requete),
   ]);
   const messagesDeSalon = await chargerParLots(salons, async (salon) => {
     const channelId = String(salon.id);
     try {
-      const messages = await requete<Record<string, unknown>[]>(cheminMessagesDeSalon(channelId));
+      const messages = await chargerPagesParCurseur(
+        requete,
+        cheminPageMessagesDeSalon(channelId),
+        (page) => page[0],
+      );
       return messages.map((message) => ({
         ...message,
         messageType: 'Salon',

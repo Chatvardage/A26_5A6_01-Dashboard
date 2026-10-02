@@ -2,6 +2,8 @@ import {
   BaseProperty, BaseRecord, BaseResource, ValidationError,
 } from 'adminjs';
 
+import { EnregistrementDistant } from './enregistrement-distant.js';
+
 type ChampRessource = {
   path: string;
   type?: 'string' | 'textarea' | 'datetime' | 'uuid' | 'password';
@@ -126,7 +128,7 @@ export class RessourceApiDistante extends BaseResource {
   }
 
   build(parametres: Record<string, unknown>): BaseRecord {
-    return new BaseRecord(parametres, this);
+    return new EnregistrementDistant(parametres, this);
   }
 
   async create(parametres: Record<string, unknown>, contexte?: unknown): Promise<Record<string, unknown>> {
@@ -148,7 +150,7 @@ export class RessourceApiDistante extends BaseResource {
         },
       );
     } catch (erreur) {
-      if (!estErreurApiDistante(erreur) || (erreur.statut !== 400 && erreur.statut !== 422)) {
+      if (!estErreurApiDistante(erreur) || ![400, 409, 422].includes(erreur.statut)) {
         throw erreur;
       }
 

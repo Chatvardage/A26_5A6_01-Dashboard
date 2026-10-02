@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    tags: ['v*']
     branches:
       - develop
       - main
@@ -30,6 +31,9 @@ jobs:
           cache: npm
           cache-dependency-path: dashboard-chatvardage/package-lock.json
 
+      - name: Verifier la version de remise
+        run: node scripts/verifier-version.mjs
+
       - name: Installer les dependances
         run: npm ci
 
@@ -52,3 +56,6 @@ jobs:
 
       - name: Generation des composants AdminJS
         run: node scripts/generate-adminjs.mjs
+
+      - name: Construire l image Docker
+        run: docker build -t chatvardage-dashboard:ci .

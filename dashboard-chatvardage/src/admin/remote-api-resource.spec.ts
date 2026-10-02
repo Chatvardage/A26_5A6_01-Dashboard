@@ -483,9 +483,9 @@ describe('RessourceApiDistante', () => {
     });
     const contexte = contexteAdmin;
 
-    await expect(ressource.count({ filters: { role: { value: 'user' } } }, contexte)).resolves.toBe(1);
+    // Un ancien role global moderateur est un compte standard.
+    await expect(ressource.count({ filters: { role: { value: 'user' } } }, contexte)).resolves.toBe(2);
     await expect(ressource.count({ filters: { role: { value: 'admin' } } }, contexte)).resolves.toBe(1);
-    await expect(ressource.count({ filters: { role: { value: 'moderateur' } } }, contexte)).resolves.toBe(1);
   });
 
   it('trie, pagine et retrouve les enregistrements demandes', async () => {

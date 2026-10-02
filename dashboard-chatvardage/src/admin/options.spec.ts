@@ -5,6 +5,7 @@ import { composantDestinationMessage } from './component-loader.js';
 import options, { optionsRessource } from './options.js';
 import { RessourceApiDistante } from './remote-api-resource.js';
 import { limitePagesServeurs } from './resources/commun.js';
+import { limitePagesMessages } from './resources/messages.js';
 
 const jetonTest = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbi0xIn0.c2lnbmF0dXJlLWRlLXRlc3Q';
 const autreJetonTest = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbi0yIn0.YXV0cmUtc2lnbmF0dXJlLXRlc3Q';
@@ -185,7 +186,7 @@ describe('Options AdminJS', () => {
   it('charge les messages prives et les messages de salon avec leur provenance', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
       const chemin = String(input);
-      if (chemin.endsWith('/api/messages/admin')) {
+      if (chemin.includes('/api/messages/admin?')) {
         return {
           ok: true,
           status: 200,
@@ -272,7 +273,7 @@ describe('Options AdminJS', () => {
     let rejeterSansErreur = false;
     jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
       const chemin = String(input);
-      if (chemin.endsWith('/api/messages/admin')) {
+      if (chemin.includes('/api/messages/admin?')) {
         return {
           ok: true,
           status: 200,
@@ -344,11 +345,95 @@ describe('Options AdminJS', () => {
       .resolves.toHaveLength(0);
   });
 
+  it('charge toutes les pages de messages prives et de salon en suivant les curseurs', async () => {
+    const page = (prefixe: string, taille: number) => Array.from(
+      { length: taille },
+      (_, index) => ({ id: `${prefixe}-${index}`, content: 'x' }),
+    );
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const chemin = String(input);
+      const reponse = (corps: unknown) => ({ ok: true, status: 200, json: async () => corps } as Response);
+      if (chemin.endsWith('/api/messages/admin?limit=100')) return reponse(page('dm-a', 100));
+      // Page suivante des DM : curseur = dernier message (le plus ancien) de la page precedente.
+      if (chemin.endsWith('/api/messages/admin?limit=100&cursor=dm-a-99')) return reponse(page('dm-b', 3));
+      if (chemin.endsWith('/api/admin/servers?decalage=0&limite=100')) {
+        return reponse({ serveurs: [{ id: 'serveur-1' }], suivant: null });
+      }
+      if (chemin.endsWith('/api/servers/serveur-1')) {
+        return reponse({ id: 'serveur-1', nom: 'Projet', salons: [{ id: 'salon-1', nom: 'general' }] });
+      }
+      if (chemin.endsWith('/rooms/salon-1/history?limit=100')) return reponse(page('salle-a', 100));
+      // Salon en ordre chronologique : curseur = premier message de la page.
+      if (chemin.endsWith('/rooms/salon-1/history?limit=100&cursor=salle-a-0')) return reponse(page('salle-b', 1));
+      throw new Error(`Chemin inattendu : ${chemin}`);
+    });
+    const messages = (options.resources ?? [])[3].resource as RessourceApiDistante;
+
+    await expect(messages.count({}, contexteAdmin)).resolves.toBe(204);
+    const deuxiemePage = await messages.find({}, { limit: 10, offset: 100 }, contexteAdmin);
+
+    expect(deuxiemePage.map((enregistrement) => enregistrement.params.id)).toEqual([
+      'dm-b-0', 'dm-b-1', 'dm-b-2', 'salle-a-0', 'salle-a-1', 'salle-a-2',
+      'salle-a-3', 'salle-a-4', 'salle-a-5', 'salle-a-6',
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+  });
+
+  it('plafonne la pagination des messages et signale une page invalide', async () => {
+    const journaliser = jest.spyOn(Logger, 'warn').mockImplementation(() => undefined);
+    let numero = 0;
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const chemin = String(input);
+      const reponse = (corps: unknown) => ({ ok: true, status: 200, json: async () => corps } as Response);
+      if (chemin.includes('/api/messages/admin?')) {
+        numero += 1;
+        return reponse(Array.from({ length: 100 }, (_, index) => ({ id: `dm-${numero}-${index}` })));
+      }
+      if (chemin.endsWith('/api/admin/servers?decalage=0&limite=100')) {
+        return reponse({ serveurs: [{ id: 'serveur-1' }], suivant: null });
+      }
+      if (chemin.endsWith('/api/servers/serveur-1')) {
+        return reponse({ id: 'serveur-1', nom: 'Projet', salons: [{ id: 'salon-1', nom: 'general' }] });
+      }
+      return reponse({ erreur: 'pas une liste' });
+    });
+    const messages = (options.resources ?? [])[3].resource as RessourceApiDistante;
+
+    await expect(messages.count({}, contexteAdmin)).resolves.toBe(limitePagesMessages * 100);
+    expect(fetchMock.mock.calls.filter(([input]) => String(input).includes('/api/messages/admin?')))
+      .toHaveLength(limitePagesMessages);
+    expect(journaliser).toHaveBeenCalledWith(
+      `Pagination interrompue apres ${limitePagesMessages} pages pour `
+        + 'http://localhost:3004/api/messages/admin?limit=100',
+      'DashboardAdmin',
+    );
+    expect(journaliser).toHaveBeenCalledWith(
+      'Reponse inattendue de http://localhost:3004/api/messages/rooms/salon-1/history?limit=100 : '
+        + 'liste de messages absente',
+      'DashboardAdmin',
+    );
+  });
+
+  it('s arrete si une page pleine ne donne pas d identifiant de curseur', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input) => ({
+      ok: true,
+      status: 200,
+      json: async () => (String(input).includes('/api/messages/admin?')
+        ? Array.from({ length: 100 }, () => ({ content: 'sans id' }))
+        : { serveurs: [], suivant: null }),
+    } as Response));
+    const messages = (options.resources ?? [])[3].resource as RessourceApiDistante;
+
+    await expect(messages.count({}, contexteAdmin)).resolves.toBe(100);
+    expect(fetchMock.mock.calls.filter(([input]) => String(input).includes('/api/messages/admin?')))
+      .toHaveLength(1);
+  });
+
   it('compacte l apercu d un message court et l omet si le contenu n est pas du texte', async () => {
     jest.spyOn(global, 'fetch').mockImplementation(async (input) => ({
       ok: true,
       status: 200,
-      json: async () => (String(input).endsWith('/api/messages/admin')
+      json: async () => (String(input).includes('/api/messages/admin?')
         ? [{ id: 'prive-1', content: null }, { id: 'prive-2', content: ' Bonjour \n  salut ' }]
         : { serveurs: [], suivant: null }),
     } as Response));
@@ -445,7 +530,7 @@ describe('Options AdminJS', () => {
     let maximumRequetesActives = 0;
     jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
       const chemin = String(input);
-      if (chemin.endsWith('/api/messages/admin')) {
+      if (chemin.includes('/api/messages/admin?')) {
         return { ok: true, status: 200, json: async () => [] } as Response;
       }
       if (chemin.endsWith('/api/admin/servers?decalage=0&limite=100')) {
@@ -485,7 +570,7 @@ describe('Options AdminJS', () => {
   it('adapte les creations et suppressions de chaque ressource', async () => {
     const fetchMock = jest.spyOn(global, 'fetch').mockImplementation(async (input, initialisation) => {
       const chemin = String(input);
-      if (chemin.endsWith('/api/messages/admin') && initialisation?.method === undefined) {
+      if (chemin.includes('/api/messages/admin?') && initialisation?.method === undefined) {
         return {
           ok: true,
           status: 200,
