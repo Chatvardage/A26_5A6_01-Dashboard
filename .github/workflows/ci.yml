@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    tags: ['v*']
+    branches:
+      - develop
+      - main
+  pull_request:
+    branches:
+      - develop
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: dashboard-chatvardage
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: dashboard-chatvardage/.nvmrc
+          cache: npm
+          cache-dependency-path: dashboard-chatvardage/package-lock.json
+
+      - name: Verifier la version de remise
+        run: node scripts/verifier-version.mjs
+
+      - name: Installer les dependances
+        run: npm ci
+
+      # Seuil "high", dependances de dev comprises : les avis restants sont
+      # moderes (tiptap 2.1.13, epingle par @adminjs/design-system d'adminjs
+      # 7.8.17) et n'ont pas de correctif compatible. Voir README, "Limites connues".
+      - name: Audit des dependances
+        run: npm audit --audit-level=high
+
+      - name: Lint
+        run: npx eslint "src/**/*.ts" --max-warnings=0
+
+      - name: Verification des types
+        run: npx tsc --noEmit -p tsconfig.json --incremental false
+
+      - name: Tests et couverture
+        run: npm run test:cov
+
+      - name: Build
+        run: npm run build
+
+      - name: Generation des composants AdminJS
+        run: node scripts/generate-adminjs.mjs
+
+      - name: Construire l image Docker
+        run: docker build -t chatvardage-dashboard:ci .

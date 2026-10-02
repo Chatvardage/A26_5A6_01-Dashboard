@@ -5,7 +5,7 @@ module.exports = {
     es6: true,
     node: true,
   },
-  extends: ['airbnb', 'plugin:@typescript-eslint/recommended'],
+  extends: ['airbnb-base', 'plugin:@typescript-eslint/recommended'],
   parserOptions: {
     ecmaVersion: 2020,
     sourceType: 'module',
@@ -23,6 +23,9 @@ module.exports = {
     'import/no-unresolved': 'off',
     'import/no-extraneous-dependencies': 'off',
     'import/extensions': 'off',
+    'no-useless-constructor': 'off',
+    'no-empty-function': 'off',
+    'class-methods-use-this': 'error',
     'import/order': [
       'error',
       {
