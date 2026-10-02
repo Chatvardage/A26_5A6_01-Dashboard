@@ -9,7 +9,8 @@ WORKDIR /app
 COPY package*.json ./
 
 # npm ci runs postinstall scripts by default; esbuild needs them to install its binary.
-RUN npm ci
+RUN npm ci \
+    && npm install --no-save "@rollup/rollup-linux-x64-musl@$(node -p "require('./node_modules/rollup/package.json').version")"
 
 # Copy application source
 COPY . .
