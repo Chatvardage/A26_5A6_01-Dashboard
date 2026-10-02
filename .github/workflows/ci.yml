@@ -37,8 +37,9 @@ jobs:
       - name: Installer les dependances
         run: npm ci
 
-      # Seuil "critical" : les avis restants sont dans les bundles precompiles d'adminjs 7.8.17
-      # (derniere version), sans correctif publie. Voir README, "Limites connues".
+      # Seuil "critical" : les avis restants (tiptap 2.1.13, epingle par
+      # @adminjs/design-system d'adminjs 7.8.17) n'ont pas de correctif compatible.
+      # Voir README, "Limites connues".
       - name: Audit des dependances de production
         run: npm audit --omit=dev --audit-level=critical
 
