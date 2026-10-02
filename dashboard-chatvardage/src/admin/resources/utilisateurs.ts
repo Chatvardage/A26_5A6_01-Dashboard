@@ -4,11 +4,13 @@ import { RessourceApiDistante } from '../remote-api-resource.js';
 
 import { optionsRessource, urlDuService } from './commun.js';
 
+// Comme Authentification, tout role autre qu admin est un compte standard : le moderateur
+// n existe que dans un serveur (Room-Service), jamais comme role global.
 export const normaliserRole = (role: string): string => {
   const valeur = role.trim().toLowerCase();
-  if (valeur === 'user' || valeur === 'utilisateur') return 'user';
-  if (valeur === 'admin' || valeur === 'administrateur') return 'admin';
-  return valeur;
+  // Un role absent reste absent : il ne doit pas correspondre au filtre `user`.
+  if (valeur === '') return '';
+  return valeur === 'admin' || valeur === 'administrateur' ? 'admin' : 'user';
 };
 
 export const normaliserChampUtilisateur = (champ: string, valeur: string): string => (
