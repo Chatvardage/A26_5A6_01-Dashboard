@@ -27,6 +27,6 @@ Ces points ont été relevés en revue et volontairement non modifiés. Ne pas l
 - **Message de `resoudrePort` qui afficherait `"undefined"`** : ça n'arriverait que si la valeur par défaut `3000` devenait invalide, ce qui est impossible en l'état.
 - **`optionsRessource` à paramètres positionnels (`src/admin/resources/commun.ts`)** : il n'y a que quatre appels, tous couverts par les tests de `options.spec.ts`. Passer à un objet de configuration ne changerait pas le comportement.
 
-## Documentation centrale du contrôle 2
+## Documentation centrale
 
-Infra est la référence du démarrage complet, des architectures, contrats et scénarios de remise. Le README local décrit le dépôt et ses commandes; les guides détaillés sont dans `A26_5A6_01-Infra/docs/`. Toute modification de contrat doit mettre à jour la référence centrale et ses liens. Mobile relève du contrôle 3.
+Infra est la référence du démarrage complet, des architectures, contrats et scénarios de validation. Le README local décrit le dépôt et ses commandes; les guides détaillés sont dans `A26_5A6_01-Infra/docs/`. Toute modification de contrat doit mettre à jour la référence centrale et ses liens.

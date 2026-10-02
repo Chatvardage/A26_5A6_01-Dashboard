@@ -40,5 +40,5 @@ Une création refusée (400/409/422, notamment un courriel déjà utilisé) gard
 
 - [Guide détaillé et limites](https://github.com/Chatvardage/A26_5A6_01-Infra/blob/develop/docs/services/Dashboard.md)
 - [Architecture et flux internes](https://github.com/Chatvardage/A26_5A6_01-Infra/blob/develop/docs/architecture.md)
-- [Démonstration et permissions](https://github.com/Chatvardage/A26_5A6_01-Infra/blob/develop/docs/validation-c2.md)
+- [Validation et permissions](https://github.com/Chatvardage/A26_5A6_01-Infra/blob/develop/docs/validation.md)
 - [Consignes de contribution](AGENTS.md)
