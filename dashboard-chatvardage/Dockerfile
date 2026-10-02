@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 # Install build tools needed for native node-gyp / AdminJS compilation
 RUN apk add --no-cache python3 make g++
@@ -24,7 +24,7 @@ RUN npm run build
 # Bundling only: no microservice is called (verified with fetch disabled).
 RUN node scripts/generate-adminjs.mjs
 
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 
 WORKDIR /app
 
