@@ -1,0 +1,23 @@
+diff --git a/node_modules/@adminjs/design-system/build/molecules/rich-text-editor/rich-text-editor.js b/node_modules/@adminjs/design-system/build/molecules/rich-text-editor/rich-text-editor.js
+index d82dcdb..af00b58 100644
+--- a/node_modules/@adminjs/design-system/build/molecules/rich-text-editor/rich-text-editor.js
++++ b/node_modules/@adminjs/design-system/build/molecules/rich-text-editor/rich-text-editor.js
+@@ -1,11 +1,13 @@
+ /* eslint-disable react/require-default-props */
+-import CharacterCount from '@tiptap/extension-character-count';
++import { CharacterCount } from '@tiptap/extensions';
+ import Image from '@tiptap/extension-image';
+ import Link from '@tiptap/extension-link';
+-import Table from '@tiptap/extension-table';
+-import TableCell from '@tiptap/extension-table-cell';
+-import TableHeader from '@tiptap/extension-table-header';
+-import TableRow from '@tiptap/extension-table-row';
++import {
++  Table,
++  TableCell,
++  TableHeader,
++  TableRow
++} from '@tiptap/extension-table';
+ import TextAlign from '@tiptap/extension-text-align';
+ import Typography from '@tiptap/extension-typography';
+ // Note: Types for @tiptap/react are temporarily ignored due to:
