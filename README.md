@@ -39,16 +39,14 @@ Une création refusée (400/409/422, notamment un courriel déjà utilisé) gard
 ## Limites connues
 
 `npm audit` signale des vulnérabilités de sévérité modérée dans
-`@tiptap/core` et `@tiptap/extension-link` 2.1.13, épinglés par
+`@tiptap/core` 2.x, épinglés par
 `@adminjs/design-system` 4.1.1 (dépendance d'`adminjs` 7.8.17, dernière
 version). Le correctif exige tiptap 3.30.4 ou plus, incompatible avec cette
 version du design system ; npm ne propose qu'une rétrogradation vers
 `adminjs` 6. Le CI audite donc au seuil `high` jusqu'à une mise à jour
 d'AdminJS.
 
-`@typescript-eslint/typescript-estree` 6.x épingle `minimatch` 9.0.3
-(vulnérable, sévérité haute) : un `override` dans `package.json` impose
-`minimatch` ^9.0.9, même API. À retirer lors du passage à typescript-eslint 8.
+Jest 30 et typescript-eslint 8 retirent la chaîne de compilation utilisant braces. Le verrou est régénéré avec npm ci; l’audit complet ne contient plus d’avis high ou critical. L’override minimatch de typescript-eslint 6 a été retiré.
 
 ## Documentation
 

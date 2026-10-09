@@ -38,15 +38,31 @@ describe('Limitation des connexions administrateur', () => {
     expect(appel(limiter, 'a', '/login', 'GET').suite).toHaveBeenCalled();
     expect(appel(limiter, 'a', '/resources').suite).toHaveBeenCalled();
     expect(appel(limiter, undefined, '/login', 'POST', '127.0.0.1').suite).toHaveBeenCalled();
-    expect(appel(limiter).suite).toHaveBeenCalled();
+    const sansAdresse = appel(limiter);
+    expect(sansAdresse.suite).not.toHaveBeenCalled();
+    expect(sansAdresse.reponse.status).toHaveBeenCalledWith(429);
   });
 
   it('refuse les nouvelles adresses quand le plafond mémoire est atteint', () => {
-    const limiter = limiterConnexions(() => 0);
+    let instant = 0;
+    const limiter = limiterConnexions(() => instant);
     for (let i = 0; i < 10_000; i += 1) appel(limiter, String(i));
     const refuse = appel(limiter, 'nouvelle');
     expect(refuse.reponse.status).toHaveBeenCalledWith(429);
     expect(refuse.suite).not.toHaveBeenCalled();
     expect(appel(limiter, '0').suite).toHaveBeenCalled();
+    instant = 60_000;
+    expect(appel(limiter, 'nouvelle').suite).toHaveBeenCalled();
+  });
+
+  it('expire les anciennes fenêtres sans réinitialiser les compteurs encore actifs', () => {
+    let instant = 0;
+    const limiter = limiterConnexions(() => instant);
+    appel(limiter, 'ancienne');
+    instant = 59_000;
+    for (let i = 0; i < 10; i += 1) appel(limiter, 'active');
+    instant = 60_000;
+    expect(appel(limiter, 'ancienne').suite).toHaveBeenCalled();
+    expect(appel(limiter, 'active').reponse.status).toHaveBeenCalledWith(429);
   });
 });

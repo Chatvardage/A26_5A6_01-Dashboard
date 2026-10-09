@@ -7,6 +7,6 @@ L'image finale utilise le bundle précompilé, retire le binaire esbuild et npm/
 
 ### Limites connues
 
-[braces GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) reste signalé dans la chaîne de compilation : aucune version corrigée publiée au 9 octobre 2026. Ne pas traiter de motifs de compilation fournis par des utilisateurs. Retirer l'exception dès une correction compatible; `npm audit --audit-level=high` reste actif et échoue actuellement.
+La migration vers Jest 30 et typescript-eslint 8 supprime braces du verrou : npm audit ne contient plus d’avis high ou critical et le seuil CI reste inchangé.
 
-[Tiptap core GHSA-cp6q-959q-f8rh](https://github.com/advisories/GHSA-cp6q-959q-f8rh) exige une migration majeure vers Tiptap 3.30.4+. AdminJS utilise Tiptap 2; ne pas forcer ce changement isolément dans sa chaîne React. Les ressources actuelles n'importent pas de documents riches ou d'objets d'attributs non fiables; toute activation future d'un éditeur/import doit d'abord remplacer cette chaîne. Voir `../../A26_5A6_01-Infra/docs/audit-securite-2026-10-09.md`.
+[Tiptap core GHSA-cp6q-959q-f8rh](https://github.com/advisories/GHSA-cp6q-959q-f8rh) exige une migration majeure vers Tiptap 3.30.4+. AdminJS utilise Tiptap 2; ne pas forcer ce changement isolément dans sa chaîne React. Les ressources actuelles n'importent pas de documents riches ou d'objets d'attributs non fiables; toute activation future d'un éditeur/import doit d'abord remplacer cette chaîne. Voir [rapport initial Infra](https://github.com/Chatvardage/A26_5A6_01-Infra/blob/develop/docs/audit-securite-2026-10-09.md).

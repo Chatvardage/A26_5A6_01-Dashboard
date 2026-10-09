@@ -30,3 +30,14 @@ Ces points ont été relevés en revue et volontairement non modifiés. Ne pas l
 ## Documentation centrale
 
 Infra est la référence du démarrage complet, des architectures, contrats et scénarios de validation. Le README local décrit le dépôt et ses commandes; les guides détaillés sont dans `A26_5A6_01-Infra/docs/`. Toute modification de contrat doit mettre à jour la référence centrale et ses liens.
+
+### Reprise sécurité — review 6078274311
+
+- Horloge monotone, refus explicite sans IP et nettoyage des seules fenêtres expirées, avec tests de la limite mémoire et conservation des quotas actifs. Jest 30/typescript-eslint 8 suppriment les avis high du verrou.
+- Une éviction LRU des IP actives est écartée : une rotation d’IP pourrait effacer des quotas et contourner la limite. Le refus des nouvelles IP à capacité maximale reste volontaire.
+- trust proxy reste réservé au mode production derrière le proxy maîtrisé. En développement, un proxy local doit être configuré explicitement avant de lui faire confiance; accepter arbitrairement les en-têtes client ferait contourner la limite par IP.
+- Une instance du limiteur par application reste intentionnelle : ses compteurs ont le même cycle de vie que l’application.
+- Le chemin npm retiré correspond à l’image officielle Node. find échoue réellement si le dossier manque; ajouter || true masquerait une construction incorrecte.
+- L’override Tiptap reste cohérent avec le design system AdminJS actuel. Une migration isolée vers Tiptap 3 casserait son API; la limite modérée et la condition de retrait restent documentées.
+
+- Vérification runtime complémentaire : les dépendances de production sont nettoyées dans un stage séparé avant copie, afin que les binaires esbuild ne subsistent dans aucune couche de l’image finale. L’analyse complète de l’image ne conserve que l’avis modéré Tiptap; aucun high/critical.
