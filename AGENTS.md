@@ -41,3 +41,10 @@ Infra est la référence du démarrage complet, des architectures, contrats et s
 - L’override Tiptap reste cohérent avec le design system AdminJS actuel. Une migration isolée vers Tiptap 3 casserait son API; la limite modérée et la condition de retrait restent documentées.
 
 - Vérification runtime complémentaire : les dépendances de production sont nettoyées dans un stage séparé avant copie, afin que les binaires esbuild ne subsistent dans aucune couche de l’image finale. L’analyse complète de l’image ne conserve que l’avis modéré Tiptap; aucun high/critical.
+
+### Review 6084483804 — runtime et attente du limiteur
+
+- Assertion esbuild pour toutes les architectures et copie du seul package.json au runtime (nécessaire au type ESM). Le nettoyage existant visait déjà toutes les architectures; la qualification critique n’est donc pas retenue, mais l’assertion est généralisée.
+- Retry-After au plafond mémoire reflète la première expiration réelle; tests de ce délai et du refus sans IP.
+- Nettoyage plafonné à 500 écarté : il conserverait des slots expirés et refuserait artificiellement des clients, alors que le travail actuel est borné à 10 000 suppressions une fois par expiration. Aucun profilage ne justifie ce changement de comportement.
+- Compatibilité YAML déjà validée par la couverture locale et CI réussie; aucun nouvel override. Cookies stricts conservés.

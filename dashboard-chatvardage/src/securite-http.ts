@@ -28,7 +28,8 @@ export function limiterConnexions(maintenant: () => number = () => performance.n
     let compteur = tentatives.get(adresse);
     if (!compteur) {
       if (tentatives.size >= 10_000) {
-        reponse.setHeader('Retry-After', '60');
+        const prochaine = tentatives.values().next().value!;
+        reponse.setHeader('Retry-After', String(Math.ceil((prochaine.expiration - instant) / 1000)));
         reponse.status(429).end();
         return;
       }

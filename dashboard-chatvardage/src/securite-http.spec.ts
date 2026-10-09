@@ -41,15 +41,18 @@ describe('Limitation des connexions administrateur', () => {
     const sansAdresse = appel(limiter);
     expect(sansAdresse.suite).not.toHaveBeenCalled();
     expect(sansAdresse.reponse.status).toHaveBeenCalledWith(429);
+    expect(sansAdresse.reponse.setHeader).toHaveBeenCalledWith('Retry-After', '60');
   });
 
   it('refuse les nouvelles adresses quand le plafond mémoire est atteint', () => {
     let instant = 0;
     const limiter = limiterConnexions(() => instant);
     for (let i = 0; i < 10_000; i += 1) appel(limiter, String(i));
+    instant = 55_000;
     const refuse = appel(limiter, 'nouvelle');
     expect(refuse.reponse.status).toHaveBeenCalledWith(429);
     expect(refuse.suite).not.toHaveBeenCalled();
+    expect(refuse.reponse.setHeader).toHaveBeenCalledWith('Retry-After', '5');
     expect(appel(limiter, '0').suite).toHaveBeenCalled();
     instant = 60_000;
     expect(appel(limiter, 'nouvelle').suite).toHaveBeenCalled();
