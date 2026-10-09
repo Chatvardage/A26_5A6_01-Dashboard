@@ -8,6 +8,7 @@ import { NestFactory } from '@nestjs/core';
 
 import options from './admin/options.js';
 import { ModuleApplication } from './app.module.js';
+import { limiterConnexions } from './securite-http.js';
 
 export async function authentifierAdministrateur(courriel: string, motDePasse: string) {
   try {
@@ -89,7 +90,7 @@ export async function demarrerApplication() {
   const mode = process.env.NODE_ENV;
   const estProduction = !!mode && mode !== 'development' && mode !== 'test';
   // getInstance() est l'application Express : @nestjs/platform-express est l'adaptateur requis ici.
-  // Le proxy HTTPS en amont transmet X-Forwarded-Proto, requis par cookie.secure = 'auto'.
+  // Le proxy HTTPS en amont transmet X-Forwarded-Proto, requis par les cookies HTTPS.
   if (estProduction) application.getHttpAdapter().getInstance().set('trust proxy', 1);
   const administration = new AdminJS(options);
   // @adminjs/express (version figee) est un paquet CommonJS : sous NodeNext, TypeScript
@@ -110,12 +111,13 @@ export async function demarrerApplication() {
         cookie: {
           httpOnly: true,
           sameSite: 'strict',
-          secure: estProduction ? 'auto' : false,
+          secure: estProduction,
+          maxAge: 30 * 60 * 1000,
         },
       },
     );
 
-  application.getHttpAdapter().getInstance().use(administration.options.rootPath, routeur);
+  application.getHttpAdapter().getInstance().use(administration.options.rootPath, limiterConnexions(), routeur);
   await application.listen(port);
 }
 
