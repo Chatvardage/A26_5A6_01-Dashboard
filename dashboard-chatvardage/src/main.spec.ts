@@ -115,11 +115,13 @@ describe('Point d entree de l application', () => {
         resave: false,
         saveUninitialized: false,
         secret: 'secret-session-de-test-de-plus-de-32-caracteres',
-        cookie: { httpOnly: true, sameSite: 'strict', secure: 'auto' },
+        cookie: {
+          httpOnly: true, sameSite: 'strict', secure: true, maxAge: 30 * 60 * 1000,
+        },
       }),
     );
     expect(configurer).toHaveBeenCalledWith('trust proxy', 1);
-    expect(utiliser).toHaveBeenCalledWith('/administration', 'routeur-admin');
+    expect(utiliser).toHaveBeenCalledWith('/administration', expect.any(Function), 'routeur-admin');
     expect(ecouter).toHaveBeenCalledWith(3000);
 
     const [, optionsAuthentification] = construireRouteur.mock.calls[0];

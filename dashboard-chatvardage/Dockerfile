@@ -35,6 +35,11 @@ COPY package*.json ./
 
 RUN npm ci --omit=dev
 
+# Le bundle AdminJS est déjà produit : esbuild et npm sont inutiles au runtime.
+RUN find node_modules/@esbuild -type f -name esbuild -delete \
+    && rm -f node_modules/esbuild/bin/esbuild \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/.adminjs ./.adminjs
 
